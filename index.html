@@ -336,6 +336,23 @@
       </div>
       <div class="scan-l" id="scanLbl">Tap to find your TV</div>
       <div class="tvl" id="tvl" style="display:none"></div>
+
+      <div style="display:flex;align-items:center;gap:10px;width:100%;margin-top:4px">
+        <div style="flex:1;height:1px;background:var(--mut);opacity:.3"></div>
+        <span style="font-size:11px;color:var(--mut)">or type IP</span>
+        <div style="flex:1;height:1px;background:var(--mut);opacity:.3"></div>
+      </div>
+
+      <div style="display:flex;gap:6px;width:100%">
+        <input id="ipInput" type="text" inputmode="decimal" placeholder="192.168.1.X"
+          style="flex:1;padding:10px 14px;border-radius:12px;background:var(--bg);
+          box-shadow:var(--ni);border:none;color:var(--tx);font-family:inherit;
+          font-size:14px;text-align:center;outline:none" />
+        <button id="ipGo" style="padding:10px 16px;border-radius:12px;
+          background:linear-gradient(135deg,var(--acc),#ff8f65);border:none;
+          color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+          box-shadow:0 3px 10px rgba(255,107,53,.3);white-space:nowrap">Connect</button>
+      </div>
     </div>
   </div>
 
@@ -565,6 +582,24 @@ $('#scanBtn').addEventListener('click',async function(){
     console.error('[remo] Discovery error:',err);
   }
 });
+
+// ── Manual IP connect ──
+$('#ipGo').addEventListener('click',async()=>{
+  const ip=$('#ipInput').value.trim();
+  if(!ip)return;
+  const btn=$('#ipGo');
+  btn.textContent='Connecting\u2026';btn.style.opacity='.7';
+  try{
+    const tv=await TVController.manualConnect(ip);
+    await TVController.connect(tv);
+    $('#tvN').textContent=tv.name||tv.ip;
+    show('remote');
+  }catch(err){
+    btn.textContent='Failed';btn.style.opacity='1';
+    setTimeout(()=>{btn.textContent='Connect'},2000);
+  }
+});
+$('#ipInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ipGo').click()});
 
 // ── Back button ──
 $('#backBtn').addEventListener('click',()=>{
