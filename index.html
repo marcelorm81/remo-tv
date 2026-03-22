@@ -112,7 +112,7 @@
     flex:1;overflow:hidden;
     display:flex;flex-direction:column;
     justify-content:space-evenly;
-    padding:4px 20px 42px;
+    padding:4px 20px 16px;
     gap:0;
   }
 
@@ -303,42 +303,6 @@
 
   /* (removed old grid wrapper) */
 
-  /* Trial */
-  .trial{
-    position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
-    background:var(--bg);box-shadow:var(--neo);border-radius:22px;
-    padding:5px 5px 5px 14px;font-size:11px;color:var(--dim);
-    display:flex;align-items:center;gap:8px;z-index:100;white-space:nowrap;
-  }
-  .trial .dl{color:var(--acc);font-weight:700}
-  .trial .ub{
-    background:linear-gradient(135deg,var(--acc),#ff8f65);color:#fff;border:none;
-    border-radius:14px;padding:6px 12px;font-size:10px;font-weight:700;
-    cursor:pointer;font-family:inherit;box-shadow:0 3px 10px rgba(255,107,53,.3);transition:transform .15s;
-  }
-  .trial .ub:active{transform:scale(.95)}
-
-  /* ═══ PAYMENT ═══ */
-  #s-pay{justify-content:center;align-items:center;gap:24px;text-align:center;padding:24px}
-  .pc{background:var(--bg);box-shadow:var(--neo);border-radius:22px;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:4px}
-  .pc-p{font-size:50px;font-weight:300;letter-spacing:-2px}
-  .pc-p span{font-size:18px;vertical-align:super;font-weight:400;color:var(--dim)}
-  .pc-t{font-size:16px;font-weight:600}
-  .pc-s{font-size:12px;color:var(--dim);line-height:1.5;max-width:230px;margin-top:2px}
-  .pf{display:flex;flex-direction:column;gap:9px;text-align:left;width:100%;max-width:260px}
-  @media(min-width:600px){.pf{flex-direction:row;flex-wrap:wrap;max-width:420px;gap:10px 20px}}
-  .pfi{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--dim)}
-  @media(min-width:600px){.pfi{flex:0 0 calc(50% - 10px)}}
-  .pfi .fc{width:22px;height:22px;border-radius:50%;background:var(--bg);box-shadow:var(--ni);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-  .pfi svg{width:11px;height:11px;color:var(--acc)}
-  .btn-buy{
-    width:100%;max-width:260px;padding:14px;border-radius:14px;
-    background:linear-gradient(135deg,var(--acc),#ff8f65);border:none;
-    color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;
-    transition:all .2s;box-shadow:0 6px 20px rgba(255,107,53,.35),var(--ns);
-  }
-  .btn-buy:active{transform:scale(.97)}
-  .pay-bk{font-size:12px;color:var(--mut);cursor:pointer;background:none;border:none;font-family:inherit;padding:6px}
 
   /* Small phones */
   @media(max-height:680px){
@@ -463,35 +427,15 @@
 
     </div>
 
-    <div class="trial" id="trialB">
-      <span><span class="dl">5 days</span> left</span>
-      <button class="ub" id="unlockBtn">$0.95 forever</button>
-    </div>
   </div>
 
-  <!-- ═══ PAYMENT ═══ -->
-  <div id="s-pay" class="scr">
-    <div class="pc">
-      <div class="pc-p"><span>$</span>0.95</div>
-      <div class="pc-t">One time. Forever yours.</div>
-      <div class="pc-s">No subscription. No account.<br>Just a remote that works.</div>
-    </div>
-    <div class="pf">
-      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>All TV brands</div>
-      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>Unlimited devices</div>
-      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>Free updates forever</div>
-      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>Works offline</div>
-    </div>
-    <button class="btn-buy" id="buyBtn">Unlock Remo</button>
-    <button class="pay-bk" id="payBk">Maybe later</button>
-  </div>
 
 </div>
 
 <script src="tv-controller.js"></script>
 <script>
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
-const scr={disc:$('#s-disc'),remote:$('#s-remote'),pay:$('#s-pay')};
+const scr={disc:$('#s-disc'),remote:$('#s-remote')};
 function show(n){Object.values(scr).forEach(s=>s.classList.remove('on'));requestAnimationFrame(()=>scr[n].classList.add('on'))}
 function hap(){navigator.vibrate&&navigator.vibrate(8)}
 
@@ -653,9 +597,6 @@ portDD.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
 }));
 
 // ── Payment ──
-$('#unlockBtn').addEventListener('click',()=>show('pay'));
-$('#payBk').addEventListener('click',()=>show('remote'));
-$('#buyBtn').addEventListener('click',()=>{const b=$('#buyBtn');b.textContent='Done \u2713';b.style.background='var(--grn)';b.style.boxShadow='0 6px 20px rgba(52,211,153,.35)';$('#trialB').style.display='none';setTimeout(()=>show('remote'),1200)});
 </script>
 </body>
 </html>
