@@ -353,6 +353,23 @@
           color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
           box-shadow:0 3px 10px rgba(255,107,53,.3);white-space:nowrap">Connect</button>
       </div>
+
+      <div style="display:flex;align-items:center;gap:10px;width:100%;margin-top:4px">
+        <div style="flex:1;height:1px;background:var(--mut);opacity:.3"></div>
+        <span style="font-size:11px;color:var(--mut)">or enter bridge code</span>
+        <div style="flex:1;height:1px;background:var(--mut);opacity:.3"></div>
+      </div>
+
+      <div style="display:flex;gap:6px;width:100%">
+        <input id="codeInput" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code"
+          style="flex:1;padding:10px 14px;border-radius:12px;background:var(--bg);
+          box-shadow:var(--ni);border:none;color:var(--tx);font-family:inherit;
+          font-size:16px;text-align:center;outline:none;letter-spacing:4px" />
+        <button id="codeGo" style="padding:10px 16px;border-radius:12px;
+          background:linear-gradient(135deg,#34d399,#2dd4bf);border:none;
+          color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+          box-shadow:0 3px 10px rgba(52,211,153,.3);white-space:nowrap">Join</button>
+      </div>
     </div>
   </div>
 
@@ -450,6 +467,7 @@
 </div>
 
 <script src="tv-controller.js"></script>
+<script src="webrtc-remote.js"></script>
 <script>
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const scr={disc:$('#s-disc'),remote:$('#s-remote')};
@@ -600,6 +618,43 @@ $('#ipGo').addEventListener('click',async()=>{
   }
 });
 $('#ipInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ipGo').click()});
+
+// ── Bridge code connect (WebRTC) ──
+let remoteClient=null;
+$('#codeGo').addEventListener('click',async()=>{
+  const code=$('#codeInput').value.trim();
+  if(!code||code.length!==6)return;
+  const btn=$('#codeGo');
+  btn.textContent='Joining\u2026';btn.style.opacity='.7';
+  try{
+    remoteClient=new RemoteClient();
+    remoteClient.onConnected=()=>{
+      console.log('[remo] WebRTC connected!');
+      $('#tvN').textContent='Remote TV';
+      $('.rtv-d').style.background='var(--grn)';
+    };
+    remoteClient.onDisconnected=()=>{
+      console.log('[remo] WebRTC disconnected');
+      $('.rtv-d').style.background='var(--red)';
+    };
+    await remoteClient.joinRoom(code);
+    // Override TVController to use WebRTC transport
+    TVController._webrtc=remoteClient;
+    TVController.sendKey=function(key){
+      if(remoteClient&&remoteClient.sendKey(key))return;
+    };
+    TVController.launchApp=function(app){
+      if(remoteClient&&remoteClient.launchApp(app))return;
+    };
+    show('remote');
+    btn.textContent='Join';btn.style.opacity='1';
+  }catch(err){
+    btn.textContent='Failed';btn.style.opacity='1';
+    console.error('[remo] WebRTC join error:',err);
+    setTimeout(()=>{btn.textContent='Join'},2000);
+  }
+});
+$('#codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#codeGo').click()});
 
 // ── Back button ──
 $('#backBtn').addEventListener('click',()=>{

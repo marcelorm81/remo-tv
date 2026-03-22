@@ -13,6 +13,10 @@ const server = http.createServer(app);
 
 app.use(cors());
 app.use(express.json());
+
+// ─── Signaling routes for WebRTC relay ───
+require('./signal-routes')(app);
+
 app.use(express.static(path.join(__dirname)));
 
 const PORT = 3456;

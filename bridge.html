@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<title>Remo Bridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --dk: #111120;
+    --lt: #252540;
+    --tx: #e8e8f0;
+    --dim: #7a7a9a;
+    --mut: #4a4a6a;
+    --acc: #ff6b35;
+    --glo: rgba(255,107,53,.2);
+    --grn: #34d399;
+    --red: #ef4444;
+    --neo: 5px 5px 10px var(--dk), -5px -5px 10px var(--lt);
+    --ns: 3px 3px 6px var(--dk), -3px -3px 6px var(--lt);
+    --ni: inset 3px 3px 6px var(--dk), inset -3px -3px 6px var(--lt);
+    --nf: 2px 2px 5px var(--dk), -2px -2px 5px var(--lt);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{height:100%}
+  body{
+    min-height:100%;
+    font-family:'Inter',-apple-system,sans-serif;
+    background:var(--bg);color:var(--tx);
+    display:flex;justify-content:center;align-items:center;
+  }
+
+  .bridge-container{
+    width:100%;max-width:480px;min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;
+    padding:40px 24px;gap:28px;
+  }
+
+  @media(min-width:600px){
+    body{background:#111122}
+    .bridge-container{
+      min-height:auto;margin:40px auto;
+      background:var(--bg);border-radius:28px;
+      box-shadow:10px 10px 25px #0a0a15,-10px -10px 25px #2a2a45;
+      padding:48px 32px;
+    }
+  }
+
+  /* Brand icon */
+  .brand-icon{
+    width:60px;height:60px;border-radius:18px;
+    background:linear-gradient(135deg,var(--acc),#ff8f65);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 24px rgba(255,107,53,.3),var(--neo);
+  }
+  .brand-icon svg{width:28px;height:28px;color:#fff}
+
+  h2{
+    font-size:28px;font-weight:700;letter-spacing:-1px;
+    background:linear-gradient(135deg,var(--tx),#b0b0d0);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  }
+  .subtitle{font-size:14px;color:var(--dim);line-height:1.5;text-align:center;max-width:280px}
+
+  /* Setup section */
+  #setup{
+    display:flex;flex-direction:column;align-items:center;gap:20px;
+    width:100%;
+  }
+
+  .form-row{
+    display:flex;gap:10px;width:100%;max-width:340px;align-items:center;
+  }
+  .form-row label{
+    font-size:13px;color:var(--dim);font-weight:500;white-space:nowrap;min-width:42px;
+  }
+
+  .field{
+    flex:1;height:44px;border-radius:12px;border:none;
+    background:var(--bg);color:var(--tx);
+    box-shadow:var(--ni);
+    padding:0 14px;font-family:inherit;font-size:14px;
+    outline:none;transition:box-shadow .2s;
+  }
+  .field:focus{box-shadow:var(--ni),0 0 0 2px rgba(255,107,53,.25)}
+
+  select.field{
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237a7a9a'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;
+    padding-right:32px;cursor:pointer;
+  }
+
+  .btn-start{
+    width:100%;max-width:340px;height:52px;border-radius:16px;
+    border:none;cursor:pointer;
+    background:linear-gradient(135deg,var(--acc),#ff8f65);
+    color:#fff;font-family:inherit;font-size:16px;font-weight:600;
+    box-shadow:0 4px 16px rgba(255,107,53,.3),var(--ns);
+    transition:all .2s;letter-spacing:-.3px;
+  }
+  .btn-start:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(255,107,53,.4),var(--neo)}
+  .btn-start:active{transform:translateY(0);box-shadow:var(--ni)}
+  .btn-start:disabled{opacity:.5;cursor:not-allowed;transform:none}
+
+  /* Active section */
+  #active{display:none;flex-direction:column;align-items:center;gap:24px;width:100%}
+
+  /* Room code display */
+  .room-code{
+    display:flex;gap:8px;justify-content:center;
+    padding:20px;
+  }
+  .room-code .digit{
+    width:48px;height:64px;border-radius:14px;
+    background:var(--bg);box-shadow:var(--ni);
+    display:flex;align-items:center;justify-content:center;
+    font-size:32px;font-weight:700;
+    color:var(--acc);letter-spacing:0;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* Status indicators */
+  .status-panel{
+    width:100%;max-width:360px;
+    border-radius:16px;background:var(--bg);
+    box-shadow:var(--neo);padding:20px;
+    display:flex;flex-direction:column;gap:14px;
+  }
+  .status-row{
+    display:flex;align-items:center;gap:10px;
+    font-size:13px;
+  }
+  .status-row .label{color:var(--dim);min-width:60px;font-weight:500}
+  .status-row .dot{
+    width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  }
+  .dot.green{background:var(--grn);box-shadow:0 0 8px rgba(52,211,153,.4)}
+  .dot.orange{background:var(--acc);box-shadow:0 0 8px var(--glo)}
+  .dot.red{background:var(--red);box-shadow:0 0 8px rgba(239,68,68,.4)}
+  .dot.gray{background:var(--mut)}
+  .status-row .value{color:var(--tx);flex:1}
+
+  /* Command log */
+  .log-panel{
+    width:100%;max-width:360px;
+    border-radius:16px;background:var(--bg);
+    box-shadow:var(--ni);
+    max-height:200px;overflow-y:auto;
+    padding:14px;
+  }
+  .log-title{
+    font-size:11px;font-weight:600;color:var(--mut);
+    text-transform:uppercase;letter-spacing:1px;
+    margin-bottom:8px;
+  }
+  .log-entry{
+    font-size:12px;color:var(--dim);
+    padding:4px 0;border-bottom:1px solid rgba(255,255,255,.03);
+    font-family:'SF Mono',Monaco,'Cascadia Code',monospace;
+  }
+  .log-entry:last-child{border-bottom:none}
+  .log-entry .time{color:var(--mut);margin-right:8px}
+  .log-entry .cmd{color:var(--grn)}
+
+  /* Scrollbar */
+  .log-panel::-webkit-scrollbar{width:4px}
+  .log-panel::-webkit-scrollbar-track{background:transparent}
+  .log-panel::-webkit-scrollbar-thumb{background:var(--mut);border-radius:2px}
+
+  /* Connection hint */
+  .hint{
+    font-size:12px;color:var(--mut);text-align:center;
+    line-height:1.6;max-width:300px;
+  }
+  .hint strong{color:var(--dim);font-weight:500}
+</style>
+</head>
+<body>
+  <div class="bridge-container">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+      </svg>
+    </div>
+    <h2>remo bridge</h2>
+    <p class="subtitle">Keep this tab open on your home WiFi to relay commands to your TV</p>
+
+    <!-- Setup Section -->
+    <div id="setup">
+      <div class="form-row">
+        <label for="tvIp">TV IP</label>
+        <input id="tvIp" class="field" type="text" placeholder="192.168.1.100" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <label for="tvBrand">Brand</label>
+        <select id="tvBrand" class="field">
+          <option value="samsung">Samsung</option>
+          <option value="lg">LG</option>
+          <option value="roku">Roku</option>
+        </select>
+      </div>
+      <button id="startBridge" class="btn-start">Start Bridge</button>
+      <p class="hint">Enter your TV's IP address and brand, then start the bridge. You'll get a <strong>6-digit code</strong> to enter on your phone.</p>
+    </div>
+
+    <!-- Active Section -->
+    <div id="active">
+      <div class="room-code" id="roomCode"></div>
+
+      <p class="hint">Enter this code on your remote to connect</p>
+
+      <div class="status-panel">
+        <div class="status-row">
+          <span class="label">TV</span>
+          <span class="dot gray" id="tvDot"></span>
+          <span class="value" id="tvStatus">Not connected</span>
+        </div>
+        <div class="status-row">
+          <span class="label">Remote</span>
+          <span class="dot gray" id="remoteDot"></span>
+          <span class="value" id="remoteStatus">Waiting for code entry...</span>
+        </div>
+        <div class="status-row">
+          <span class="label">WebRTC</span>
+          <span class="dot gray" id="rtcDot"></span>
+          <span class="value" id="rtcStatus">Not started</span>
+        </div>
+      </div>
+
+      <div class="log-panel">
+        <div class="log-title">Command Log</div>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="webrtc-bridge.js"></script>
+  <script>
+    (function() {
+      var bridge = null;
+      var startBtn = document.getElementById('startBridge');
+      var setupEl = document.getElementById('setup');
+      var activeEl = document.getElementById('active');
+      var tvIpInput = document.getElementById('tvIp');
+      var tvBrandSelect = document.getElementById('tvBrand');
+      var roomCodeEl = document.getElementById('roomCode');
+      var tvStatusEl = document.getElementById('tvStatus');
+      var remoteStatusEl = document.getElementById('remoteStatus');
+      var rtcStatusEl = document.getElementById('rtcStatus');
+      var tvDot = document.getElementById('tvDot');
+      var remoteDot = document.getElementById('remoteDot');
+      var rtcDot = document.getElementById('rtcDot');
+      var logEl = document.getElementById('log');
+
+      function setDot(dot, color) {
+        dot.className = 'dot ' + color;
+      }
+
+      function displayCode(code) {
+        roomCodeEl.innerHTML = '';
+        for (var i = 0; i < code.length; i++) {
+          var d = document.createElement('div');
+          d.className = 'digit';
+          d.textContent = code[i];
+          roomCodeEl.appendChild(d);
+        }
+      }
+
+      function addLog(text) {
+        var now = new Date();
+        var time = now.getHours().toString().padStart(2, '0') + ':' +
+                   now.getMinutes().toString().padStart(2, '0') + ':' +
+                   now.getSeconds().toString().padStart(2, '0');
+        var entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.innerHTML = '<span class="time">' + time + '</span><span class="cmd">' + text + '</span>';
+        logEl.insertBefore(entry, logEl.firstChild);
+        // Keep log manageable
+        while (logEl.children.length > 50) {
+          logEl.removeChild(logEl.lastChild);
+        }
+      }
+
+      startBtn.addEventListener('click', async function() {
+        var ip = tvIpInput.value.trim();
+        var brand = tvBrandSelect.value;
+
+        if (!ip) {
+          tvIpInput.focus();
+          return;
+        }
+
+        startBtn.disabled = true;
+        startBtn.textContent = 'Connecting to TV...';
+
+        bridge = new BridgeAgent();
+
+        // Status change handler
+        bridge.onStatusChange = function(status) {
+          addLog(status);
+
+          if (status.indexOf('Remote connected') !== -1) {
+            remoteStatusEl.textContent = 'Connected';
+            setDot(remoteDot, 'green');
+          }
+          if (status.indexOf('WebRTC:') !== -1) {
+            var state = status.replace('WebRTC: ', '');
+            rtcStatusEl.textContent = state;
+            if (state === 'connected') {
+              setDot(rtcDot, 'green');
+              rtcStatusEl.textContent = 'P2P Connected';
+            } else if (state === 'connecting') {
+              setDot(rtcDot, 'orange');
+            } else if (state === 'disconnected' || state === 'failed') {
+              setDot(rtcDot, 'red');
+            }
+          }
+          if (status.indexOf('Relaying commands') !== -1) {
+            remoteStatusEl.textContent = 'Live';
+            setDot(remoteDot, 'green');
+            setDot(rtcDot, 'green');
+            rtcStatusEl.textContent = 'P2P Connected';
+          }
+          if (status.indexOf('Remote disconnected') !== -1) {
+            remoteStatusEl.textContent = 'Disconnected';
+            setDot(remoteDot, 'red');
+            setDot(rtcDot, 'gray');
+            rtcStatusEl.textContent = 'Waiting for reconnect...';
+          }
+        };
+
+        // Command handler
+        bridge.onCommand = function(cmd) {
+          if (cmd.type === 'key') {
+            addLog('KEY: ' + cmd.key);
+          } else if (cmd.type === 'app') {
+            addLog('APP: ' + cmd.app);
+          } else {
+            addLog(cmd.type + ': ' + JSON.stringify(cmd));
+          }
+        };
+
+        try {
+          // Step 1: Connect to TV
+          var tvInfo = await bridge.connectTV(ip, brand);
+          tvStatusEl.textContent = tvInfo.name + ' (' + tvInfo.ip + ')';
+          setDot(tvDot, 'green');
+          addLog('TV connected: ' + tvInfo.name);
+        } catch(e) {
+          // Even if TV connection fails, continue with bridge setup
+          // The TV might need pairing approval first
+          tvStatusEl.textContent = 'Connection pending (' + ip + ')';
+          setDot(tvDot, 'orange');
+          addLog('TV: ' + e.message + ' (will retry)');
+        }
+
+        try {
+          // Step 2: Create signaling room
+          var code = await bridge.createRoom();
+          displayCode(code);
+
+          // Show active section
+          setupEl.style.display = 'none';
+          activeEl.style.display = 'flex';
+
+          remoteStatusEl.textContent = 'Waiting for code entry...';
+          setDot(remoteDot, 'orange');
+          rtcStatusEl.textContent = 'Waiting for remote';
+
+          addLog('Room created: ' + code);
+        } catch(e) {
+          startBtn.disabled = false;
+          startBtn.textContent = 'Start Bridge';
+          addLog('Error: ' + e.message);
+          alert('Failed to create room: ' + e.message);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
