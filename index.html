@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<title>Remo — Universal Remote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --dk: #111120;
+    --lt: #252540;
+    --tx: #e8e8f0;
+    --dim: #7a7a9a;
+    --mut: #4a4a6a;
+    --acc: #ff6b35;
+    --glo: rgba(255,107,53,.2);
+    --grn: #34d399;
+    --red: #ef4444;
+    --neo: 5px 5px 10px var(--dk), -5px -5px 10px var(--lt);
+    --ns: 3px 3px 6px var(--dk), -3px -3px 6px var(--lt);
+    --ni: inset 3px 3px 6px var(--dk), inset -3px -3px 6px var(--lt);
+    --nf: 2px 2px 5px var(--dk), -2px -2px 5px var(--lt);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html{height:100%}
+  body{
+    min-height:100%;height:100vh;overflow:hidden;
+    font-family:'Inter',-apple-system,sans-serif;
+    background:var(--bg);color:var(--tx);
+    display:flex;justify-content:center;align-items:center;
+    touch-action:manipulation;
+  }
+
+  .shell{width:100%;height:100vh;position:relative;overflow:hidden}
+
+  @media(min-width:600px){
+    body{background:#111122}
+    .shell{width:95vw;max-width:860px;height:92vh;border-radius:28px;background:var(--bg);box-shadow:10px 10px 25px #0a0a15,-10px -10px 25px #2a2a45}
+  }
+  @media(min-width:1024px){
+    .shell{max-width:960px;height:90vh}
+  }
+
+  /* Screens */
+  .scr{display:none;width:100%;height:100%;position:absolute;inset:0;opacity:0;transition:opacity .35s ease}
+  .scr.on{display:flex;flex-direction:column;opacity:1}
+
+  /* ═══ DISCOVER ═══ */
+  #s-disc{justify-content:center;align-items:center;gap:32px;text-align:center;padding:20px}
+
+  .brand{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .brand-ico{
+    width:60px;height:60px;border-radius:18px;
+    background:linear-gradient(135deg,var(--acc),#ff8f65);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 24px rgba(255,107,53,.3),var(--neo);
+  }
+  .brand-ico svg{width:28px;height:28px;color:#fff}
+  .brand h2{font-size:28px;font-weight:700;letter-spacing:-1px;background:linear-gradient(135deg,var(--tx),#b0b0d0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .brand p{font-size:14px;color:var(--dim);line-height:1.5;max-width:240px}
+
+  .disc{display:flex;flex-direction:column;align-items:center;gap:20px;width:100%;max-width:300px}
+  .scan{
+    width:120px;height:120px;border-radius:50%;background:var(--bg);box-shadow:var(--neo);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;cursor:pointer;transition:all .3s;
+  }
+  .scan:active{box-shadow:var(--ni)}
+  .scan.go{box-shadow:var(--neo),0 0 24px var(--glo)}
+  .scan.go::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:2px solid transparent;border-top-color:var(--acc);animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .scan svg{width:36px;height:36px;color:var(--dim);transition:color .3s}
+  .scan.go svg{color:var(--acc);animation:pul 1.5s ease-in-out infinite}
+  @keyframes pul{0%,100%{opacity:.5}50%{opacity:1}}
+  .scan-l{font-size:13px;color:var(--dim)}
+
+  .tvl{width:100%;display:flex;flex-direction:column;gap:8px;animation:fu .4s ease}
+  @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .tvi{display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--bg);border-radius:12px;box-shadow:var(--ns);cursor:pointer;transition:all .15s}
+  .tvi:active{box-shadow:var(--ni);transform:scale(.98)}
+  .tvi-i{width:34px;height:34px;border-radius:9px;background:var(--bg);box-shadow:var(--ni);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .tvi-i svg{width:17px;height:17px;color:var(--acc)}
+  .tvi-t{flex:1;min-width:0}
+  .tvi-n{font-size:13px;font-weight:500}
+  .tvi-m{font-size:10px;color:var(--dim);margin-top:1px}
+  .tvi-d{width:6px;height:6px;border-radius:50%;background:var(--grn);box-shadow:0 0 6px rgba(52,211,153,.5)}
+
+  /* ═══ REMOTE ═══ */
+  #s-remote{overflow:hidden}
+
+  .r-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px 6px;flex-shrink:0;
+  }
+  .hb{
+    width:34px;height:34px;border-radius:10px;background:var(--bg);box-shadow:var(--ns);
+    border:none;display:flex;align-items:center;justify-content:center;
+    color:var(--dim);cursor:pointer;transition:all .15s;
+  }
+  .hb:active{box-shadow:var(--ni);color:var(--tx)}
+  .hb svg{width:16px;height:16px}
+  .rtv{font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px}
+  .rtv-d{width:6px;height:6px;border-radius:50%;background:var(--grn);box-shadow:0 0 6px rgba(52,211,153,.5)}
+
+  /* ── Remote layout: flexbox rows ── */
+  .r-body{
+    flex:1;overflow:hidden;
+    display:flex;flex-direction:column;
+    justify-content:space-evenly;
+    padding:4px 20px 42px;
+    gap:0;
+  }
+
+  /* Row: vol | pad | ch */
+  .r-center{display:flex;align-items:center;justify-content:center;gap:6px}
+  /* Row: nav ... media */
+  .r-navmedia{display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+  /* Bottom group: nav/media + numpad + apps packed tight */
+  .r-bottom{display:flex;flex-direction:column;gap:4px}
+  .z-num{display:grid!important;width:100%}
+  .z-apps{margin:0 auto}
+
+  @media(min-width:600px){
+    .r-body{padding:10px 20px 44px}
+    .r-center{gap:16px}
+  }
+  @media(min-width:1024px){
+    .r-body{padding:10px 32px 44px}
+    .r-center{gap:24px}
+  }
+
+  /* ── Controls ── */
+
+  /* Power row */
+  .z-top{display:flex;justify-content:space-between;align-items:center;width:100%}
+  .pwr{
+    width:42px;height:42px;border-radius:50%;background:var(--bg);box-shadow:var(--neo);
+    border:none;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all .15s;color:var(--red);
+  }
+  @media(min-width:600px){.pwr{width:46px;height:46px}}
+  @media(min-width:1024px){.pwr{width:52px;height:52px}}
+  .pwr:active{box-shadow:var(--ni);transform:scale(.93)}
+  .pwr svg{width:16px;height:16px}
+  @media(min-width:600px){.pwr svg{width:18px;height:18px}}
+  .src{display:flex;gap:5px;align-items:center;position:relative}
+  .chip{
+    padding:6px 10px;border-radius:16px;background:var(--bg);box-shadow:var(--ns);
+    font-size:9px;font-weight:600;color:var(--dim);cursor:pointer;transition:all .15s;
+    letter-spacing:.4px;border:none;font-family:inherit;
+  }
+  @media(min-width:600px){.chip{padding:8px 14px;font-size:11px;border-radius:20px}}
+  @media(min-width:1024px){.chip{padding:9px 16px;font-size:12px}}
+  .chip:active{box-shadow:var(--ni)}
+  .chip.on{box-shadow:var(--ni);color:var(--acc)}
+
+  /* Port dropdown trigger */
+  .port-more{
+    width:30px;height:30px;border-radius:50%;background:var(--bg);box-shadow:var(--ns);
+    border:none;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--dim);transition:all .15s;
+  }
+  @media(min-width:600px){.port-more{width:36px;height:36px}}
+  .port-more:active{box-shadow:var(--ni);color:var(--acc)}
+  .port-more svg{width:14px;height:14px}
+
+  /* Port dropdown overlay */
+  .port-dd{
+    display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:50;
+    background:var(--bg);box-shadow:var(--neo),0 8px 24px rgba(0,0,0,.4);
+    border-radius:14px;padding:8px;min-width:140px;
+    flex-direction:column;gap:4px;
+  }
+  .port-dd.open{display:flex}
+  .port-dd .chip{width:100%;text-align:center;justify-content:center;display:flex}
+
+  /* Touchpad */
+  .z-pad{display:flex;justify-content:center}
+  .tp{
+    width:min(36vw,140px);height:min(36vw,140px);border-radius:50%;
+    background:var(--bg);box-shadow:var(--neo);position:relative;
+    cursor:pointer;touch-action:none;transition:box-shadow .2s;
+  }
+  @media(min-width:600px){.tp{width:170px;height:170px}}
+  @media(min-width:1024px){.tp{width:210px;height:210px}}
+  .tp:active{box-shadow:var(--neo),0 0 14px var(--glo)}
+
+  .ok{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:48px;height:48px;border-radius:50%;background:var(--bg);box-shadow:var(--ns);
+    font-size:11px;font-weight:600;color:var(--dim);z-index:2;
+    border:none;font-family:inherit;cursor:pointer;transition:all .15s;
+    display:flex;align-items:center;justify-content:center;
+  }
+  @media(min-width:600px){.ok{width:60px;height:60px;font-size:13px}}
+  @media(min-width:1024px){.ok{width:68px;height:68px;font-size:15px}}
+  .ok:active{box-shadow:var(--ni);color:var(--acc);transform:translate(-50%,-50%) scale(.93)}
+
+  .ar{position:absolute;color:var(--mut);transition:color .2s,transform .2s}
+  .ar svg{width:13px;height:13px}
+  @media(min-width:600px){.ar svg{width:15px;height:15px}}
+  .ar.u{top:12px;left:50%;transform:translateX(-50%)}
+  .ar.d{bottom:12px;left:50%;transform:translateX(-50%)}
+  .ar.l{left:12px;top:50%;transform:translateY(-50%)}
+  .ar.r{right:12px;top:50%;transform:translateY(-50%)}
+  @media(min-width:600px){.ar.u{top:16px}.ar.d{bottom:16px}.ar.l{left:16px}.ar.r{right:16px}}
+  .tp.dir-up .ar.u{color:var(--acc);transform:translateX(-50%) translateY(-2px)}
+  .tp.dir-down .ar.d{color:var(--acc);transform:translateX(-50%) translateY(2px)}
+  .tp.dir-left .ar.l{color:var(--acc);transform:translateY(-50%) translateX(-2px)}
+  .tp.dir-right .ar.r{color:var(--acc);transform:translateY(-50%) translateX(2px)}
+
+  /* Nav */
+  .z-nav{display:flex;justify-content:center;gap:10px}
+  .bn{
+    width:38px;height:38px;border-radius:10px;background:var(--bg);box-shadow:var(--ns);
+    border:none;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all .15s;color:var(--dim);
+  }
+  @media(min-width:600px){.bn{width:46px;height:46px;border-radius:12px}}
+  @media(min-width:1024px){.bn{width:52px;height:52px;border-radius:14px}}
+  .bn:active{box-shadow:var(--ni);color:var(--tx);transform:scale(.93)}
+  .bn svg{width:16px;height:16px}
+
+  /* Vol/Ch */
+  .vg{display:flex;flex-direction:column;align-items:center;width:66px}
+  @media(min-width:600px){.vg{width:90px}}
+  @media(min-width:1024px){.vg{width:110px}}
+  .vl{font-size:8px;font-weight:600;color:var(--mut);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px}
+  .vt{width:100%;border-radius:11px;background:var(--bg);box-shadow:var(--ns);overflow:hidden}
+  .vb{
+    width:100%;height:36px;display:flex;align-items:center;justify-content:center;
+    background:transparent;border:none;color:var(--dim);cursor:pointer;transition:all .15s;font-family:inherit;
+  }
+  @media(min-width:600px){.vb{height:46px}}
+  @media(min-width:1024px){.vb{height:52px}}
+  .vb:active{background:rgba(255,255,255,.02);color:var(--tx)}
+  .vb svg{width:15px;height:15px}
+  .vm{
+    width:100%;height:24px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--mut);font-size:7px;letter-spacing:1.5px;text-transform:uppercase;
+    font-weight:600;background:transparent;border:none;font-family:inherit;
+    border-top:1px solid rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.03);
+  }
+  @media(min-width:600px){.vm{height:32px;font-size:9px}}
+  @media(min-width:1024px){.vm{height:36px;font-size:10px}}
+  .vm:active{color:var(--acc)}
+
+  /* Media */
+  .z-media{display:flex;justify-content:center;align-items:center;gap:10px}
+  .bm{
+    width:34px;height:34px;border-radius:50%;background:var(--bg);box-shadow:var(--nf);
+    border:none;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all .15s;color:var(--dim);
+  }
+  @media(min-width:600px){.bm{width:40px;height:40px}}
+  @media(min-width:1024px){.bm{width:46px;height:46px}}
+  .bm:active{box-shadow:var(--ni);color:var(--tx);transform:scale(.9)}
+  .bm.play{width:40px;height:40px;box-shadow:var(--ns)}
+  @media(min-width:600px){.bm.play{width:48px;height:48px}}
+  @media(min-width:1024px){.bm.play{width:54px;height:54px}}
+  .bm svg{width:12px;height:12px}
+  .bm.play svg{width:16px;height:16px}
+
+  /* Numpad inline — always visible */
+  .z-num{
+    grid-template-columns:repeat(3,1fr);
+    gap:3px;width:100%;
+  }
+  @media(min-width:600px){.z-num{grid-template-columns:repeat(6,1fr);gap:6px}}
+  @media(min-width:1024px){.z-num{max-width:600px;gap:8px}}
+
+  .nb{
+    height:36px;border-radius:9px;background:var(--bg);box-shadow:var(--ns);
+    border:none;color:var(--tx);font-size:15px;font-weight:400;cursor:pointer;
+    font-family:inherit;display:flex;align-items:center;justify-content:center;transition:all .12s;
+  }
+  @media(min-width:600px){.nb{height:46px;border-radius:10px;font-size:18px}}
+  @media(min-width:1024px){.nb{height:52px;border-radius:12px;font-size:20px}}
+  .nb:active{box-shadow:var(--ni);transform:scale(.95)}
+  .nb.lb{font-size:10px;font-weight:600;color:var(--dim)}
+
+  /* Apps */
+  .z-apps{display:flex;justify-content:center;gap:6px;flex-wrap:wrap}
+  .ab{
+    width:68px;height:30px;border-radius:8px;background:var(--bg);box-shadow:var(--ns);
+    border:none;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;transition:all .15s;font-size:8px;font-weight:700;font-family:inherit;
+  }
+  @media(min-width:600px){.ab{width:72px;height:40px;font-size:11px;border-radius:10px}}
+  @media(min-width:1024px){.ab{width:82px;height:44px;font-size:12px;border-radius:12px}}
+  .ab:active{box-shadow:var(--ni);transform:scale(.94)}
+  .ab img{height:55%;width:auto;max-width:85%;object-fit:contain}
+  .ab.nf{background:#fff}
+  .ab.yt{background:#fff}
+  .ab.pr{background:#00a8e1}
+  .ab.pr img,.ab.ds img{filter:brightness(0) invert(1)}
+  .ab.ds{background:#113ccf}
+
+  /* (removed old grid wrapper) */
+
+  /* Trial */
+  .trial{
+    position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
+    background:var(--bg);box-shadow:var(--neo);border-radius:22px;
+    padding:5px 5px 5px 14px;font-size:11px;color:var(--dim);
+    display:flex;align-items:center;gap:8px;z-index:100;white-space:nowrap;
+  }
+  .trial .dl{color:var(--acc);font-weight:700}
+  .trial .ub{
+    background:linear-gradient(135deg,var(--acc),#ff8f65);color:#fff;border:none;
+    border-radius:14px;padding:6px 12px;font-size:10px;font-weight:700;
+    cursor:pointer;font-family:inherit;box-shadow:0 3px 10px rgba(255,107,53,.3);transition:transform .15s;
+  }
+  .trial .ub:active{transform:scale(.95)}
+
+  /* ═══ PAYMENT ═══ */
+  #s-pay{justify-content:center;align-items:center;gap:24px;text-align:center;padding:24px}
+  .pc{background:var(--bg);box-shadow:var(--neo);border-radius:22px;padding:24px 20px;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .pc-p{font-size:50px;font-weight:300;letter-spacing:-2px}
+  .pc-p span{font-size:18px;vertical-align:super;font-weight:400;color:var(--dim)}
+  .pc-t{font-size:16px;font-weight:600}
+  .pc-s{font-size:12px;color:var(--dim);line-height:1.5;max-width:230px;margin-top:2px}
+  .pf{display:flex;flex-direction:column;gap:9px;text-align:left;width:100%;max-width:260px}
+  @media(min-width:600px){.pf{flex-direction:row;flex-wrap:wrap;max-width:420px;gap:10px 20px}}
+  .pfi{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--dim)}
+  @media(min-width:600px){.pfi{flex:0 0 calc(50% - 10px)}}
+  .pfi .fc{width:22px;height:22px;border-radius:50%;background:var(--bg);box-shadow:var(--ni);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .pfi svg{width:11px;height:11px;color:var(--acc)}
+  .btn-buy{
+    width:100%;max-width:260px;padding:14px;border-radius:14px;
+    background:linear-gradient(135deg,var(--acc),#ff8f65);border:none;
+    color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;
+    transition:all .2s;box-shadow:0 6px 20px rgba(255,107,53,.35),var(--ns);
+  }
+  .btn-buy:active{transform:scale(.97)}
+  .pay-bk{font-size:12px;color:var(--mut);cursor:pointer;background:none;border:none;font-family:inherit;padding:6px}
+
+  /* Small phones */
+  @media(max-height:680px){
+    .tp{width:min(32vw,120px);height:min(32vw,120px)}
+    .ok{width:38px;height:38px;font-size:10px}
+    .ar.u{top:6px}.ar.d{bottom:6px}.ar.l{left:6px}.ar.r{right:6px}
+    .r-body{gap:4px 10px;padding:2px 10px 36px}
+    .r-head{padding:2px 10px 2px}
+    .nb{height:28px;font-size:12px}
+    .vg{width:80px}
+    .vb{height:26px}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ═══ DISCOVER ═══ -->
+  <div id="s-disc" class="scr on">
+    <div class="brand">
+      <div class="brand-ico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <h2>remo</h2>
+      <p>The remote your TV deserves.<br>No app. No account. Just tap.</p>
+    </div>
+    <div class="disc">
+      <div class="scan" id="scanBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/><path d="M12 10a2 2 0 0 1 2 2"/><circle cx="12" cy="12" r=".5" fill="currentColor"/></svg>
+      </div>
+      <div class="scan-l" id="scanLbl">Tap to find your TV</div>
+      <div class="tvl" id="tvl" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ═══ REMOTE ═══ -->
+  <div id="s-remote" class="scr">
+    <div class="r-head">
+      <button class="hb" id="backBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="rtv"><span class="rtv-d"></span><span id="tvN">Living Room TV</span></div>
+      <button class="hb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+    </div>
+
+    <div class="r-body">
+
+      <div class="z-top">
+        <button class="pwr" data-action="power"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg></button>
+        <div class="src">
+          <button class="chip on" data-action="hdmi1">HDMI 1</button>
+          <button class="chip" data-action="hdmi2">HDMI 2</button>
+          <button class="chip" data-action="tv">TV</button>
+          <button class="port-more" id="portBtn" aria-label="More inputs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><line x1="6" y1="11" x2="6" y2="13"/><line x1="10" y1="11" x2="10" y2="13"/><line x1="14" y1="11" x2="14" y2="13"/></svg>
+          </button>
+          <div class="port-dd" id="portDD">
+            <button class="chip" data-action="hdmi3">HDMI 3</button>
+            <button class="chip" data-action="hdmi4">HDMI 4</button>
+            <button class="chip" data-action="av">AV</button>
+            <button class="chip" data-action="component">Component</button>
+            <button class="chip" data-action="usb">USB</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vol | Pad | Ch -->
+      <div class="r-center">
+        <div class="vg">
+          <div class="vl">Vol</div>
+          <div class="vt">
+            <button class="vb" data-action="vol+"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+            <button class="vm" data-action="mute">MUTE</button>
+            <button class="vb" data-action="vol-"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          </div>
+        </div>
+        <div class="tp" id="tp">
+          <div class="ar u"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg></div>
+          <div class="ar d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></div>
+          <div class="ar l"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></div>
+          <div class="ar r"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 6 15 12 9 18"/></svg></div>
+          <button class="ok" data-action="ok">OK</button>
+        </div>
+        <div class="vg">
+          <div class="vl">Ch</div>
+          <div class="vt">
+            <button class="vb" data-action="ch+"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+            <button class="vm" data-action="guide">GUIDE</button>
+            <button class="vb" data-action="ch-"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom section: nav/media + numpad + apps packed tight -->
+      <div class="r-bottom">
+        <div class="r-navmedia">
+          <div class="z-nav">
+            <button class="bn" data-action="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"/><path d="M6 12h12"/></svg></button>
+            <button class="bn" data-action="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+            <button class="bn" data-action="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+          </div>
+          <div class="z-media">
+            <button class="bm" data-action="rew"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5"/><polygon points="22 19 13 12 22 5"/></svg></button>
+            <button class="bm play" data-action="play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21"/></svg></button>
+            <button class="bm" data-action="fwd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 19 22 12 13 5"/><polygon points="2 19 11 12 2 5"/></svg></button>
+          </div>
+        </div>
+        <div class="z-num">
+          <button class="nb" data-action="1">1</button><button class="nb" data-action="2">2</button>
+          <button class="nb" data-action="3">3</button><button class="nb" data-action="4">4</button>
+          <button class="nb" data-action="5">5</button><button class="nb" data-action="6">6</button>
+          <button class="nb" data-action="7">7</button><button class="nb" data-action="8">8</button>
+          <button class="nb" data-action="9">9</button><button class="nb lb" data-action="info">INFO</button>
+          <button class="nb" data-action="0">0</button><button class="nb lb" data-action="exit">EXIT</button>
+        </div>
+        <div class="z-apps">
+          <button class="ab nf" data-action="netflix" aria-label="Netflix"><img src="https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg" alt="Netflix" style="height:31%;"></button>
+          <button class="ab yt" data-action="youtube" aria-label="YouTube"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/YouTube_Logo_2017.svg" alt="YouTube"></button>
+          <button class="ab pr" data-action="prime" aria-label="Prime Video"><img src="https://upload.wikimedia.org/wikipedia/commons/7/72/Amazon_Prime_logo_%282022%29.svg" alt="Prime"></button>
+          <button class="ab ds" data-action="disney" aria-label="Disney+"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg" alt="Disney+"></button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="trial" id="trialB">
+      <span><span class="dl">5 days</span> left</span>
+      <button class="ub" id="unlockBtn">$0.95 forever</button>
+    </div>
+  </div>
+
+  <!-- ═══ PAYMENT ═══ -->
+  <div id="s-pay" class="scr">
+    <div class="pc">
+      <div class="pc-p"><span>$</span>0.95</div>
+      <div class="pc-t">One time. Forever yours.</div>
+      <div class="pc-s">No subscription. No account.<br>Just a remote that works.</div>
+    </div>
+    <div class="pf">
+      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>All TV brands</div>
+      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>Unlimited devices</div>
+      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>Free updates forever</div>
+      <div class="pfi"><div class="fc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div>Works offline</div>
+    </div>
+    <button class="btn-buy" id="buyBtn">Unlock Remo</button>
+    <button class="pay-bk" id="payBk">Maybe later</button>
+  </div>
+
+</div>
+
+<script src="tv-controller.js"></script>
+<script>
+const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
+const scr={disc:$('#s-disc'),remote:$('#s-remote'),pay:$('#s-pay')};
+function show(n){Object.values(scr).forEach(s=>s.classList.remove('on'));requestAnimationFrame(()=>scr[n].classList.add('on'))}
+function hap(){navigator.vibrate&&navigator.vibrate(8)}
+
+// ── Action-to-key mapping ──
+const actionMap={
+  power:'power','vol+':'volUp','vol-':'volDown',mute:'mute',
+  'ch+':'chUp','ch-':'chDown',guide:'guide',
+  back:'back',home:'home',menu:'menu',ok:'ok',
+  play:'play',rew:'rewind',fwd:'forward',
+  info:'info',exit:'exit',
+  hdmi1:'hdmi1',hdmi2:'hdmi2',hdmi3:'hdmi3',hdmi4:'hdmi4',
+  tv:'tv',av:'av',component:'component',usb:'usb',
+  '1':'num1','2':'num2','3':'num3','4':'num4','5':'num5','6':'num6',
+  '7':'num7','8':'num8','9':'num9','0':'num0',
+};
+const appActions={netflix:'netflix',youtube:'youtube',prime:'prime',disney:'disney'};
+
+// ── TV Controller events ──
+TVController.on('connected',()=>{
+  console.log('[remo] Connected to TV');
+  $('.rtv-d').style.background='var(--grn)';
+});
+TVController.on('disconnected',()=>{
+  console.log('[remo] Disconnected');
+  $('.rtv-d').style.background='var(--red)';
+});
+TVController.on('error',e=>console.warn('[remo] Error:',e));
+
+// ── Discovery ──
+$('#scanBtn').addEventListener('click',async function(){
+  if(this.classList.contains('go'))return;
+  this.classList.add('go');$('#scanLbl').textContent='Scanning your network\u2026';$('#tvl').style.display='none';hap();
+
+  try{
+    const tvs=await TVController.discover();
+    this.classList.remove('go');
+
+    if(tvs.length===0){
+      // No TVs found — offer manual IP entry
+      this.style.display='none';
+      $('#scanLbl').textContent='No TVs found';
+      $('#tvl').innerHTML=`
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:center">
+          <div style="font-size:12px;color:var(--dim)">Enter your TV's IP address:</div>
+          <input id="manualIp" type="text" placeholder="192.168.1.100"
+            style="width:100%;padding:10px 14px;border-radius:10px;background:var(--bg);
+            box-shadow:var(--ni);border:none;color:var(--tx);font-family:inherit;
+            font-size:14px;text-align:center;outline:none" />
+          <button id="manualConnect" style="padding:8px 20px;border-radius:18px;
+            background:linear-gradient(135deg,var(--acc),#ff8f65);border:none;
+            color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
+            Connect</button>
+        </div>`;
+      $('#tvl').style.display='flex';
+
+      $('#manualConnect').addEventListener('click',async()=>{
+        const ip=$('#manualIp').value.trim();
+        if(!ip)return;
+        $('#manualConnect').textContent='Connecting\u2026';
+        try{
+          const tv=await TVController.manualConnect(ip);
+          await TVController.connect(tv);
+          $('#tvN').textContent=tv.name||tv.ip;
+          show('remote');
+        }catch(err){
+          $('#manualConnect').textContent='Failed \u2014 try again';
+          setTimeout(()=>{$('#manualConnect').textContent='Connect'},2000);
+        }
+      });
+      return;
+    }
+
+    this.style.display='none';
+    $('#scanLbl').textContent=`Found ${tvs.length} device${tvs.length>1?'s':''}`;
+    $('#tvl').innerHTML=tvs.map((t,i)=>`
+      <div class="tvi" data-idx="${i}">
+        <div class="tvi-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        <div class="tvi-t"><div class="tvi-n">${t.name||t.ip}</div><div class="tvi-m">${t.brand}${t.model?' '+t.model:''} \u2014 ${t.ip}</div></div>
+        <div class="tvi-d"></div>
+      </div>`).join('');
+    $('#tvl').style.display='flex';
+
+    // Store discovered TVs for connection
+    window._discoveredTVs=tvs;
+
+    $$('.tvi').forEach(item=>{
+      item.addEventListener('click',async()=>{
+        hap();
+        const idx=parseInt(item.dataset.idx);
+        const tv=window._discoveredTVs[idx];
+        item.querySelector('.tvi-n').textContent='Connecting\u2026';
+        try{
+          await TVController.connect(tv);
+          $('#tvN').textContent=tv.name||tv.ip;
+          show('remote');
+        }catch(err){
+          item.querySelector('.tvi-n').textContent=tv.name||tv.ip;
+          item.querySelector('.tvi-m').textContent='Connection failed \u2014 tap to retry';
+        }
+      });
+    });
+  }catch(err){
+    this.classList.remove('go');
+    $('#scanLbl').textContent='Scan failed \u2014 is the server running?';
+    console.error('[remo] Discovery error:',err);
+  }
+});
+
+// ── Back button ──
+$('#backBtn').addEventListener('click',()=>{
+  TVController.disconnect();
+  show('disc');
+  const s=$('#scanBtn');s.style.display='';s.classList.remove('go');
+  $('#scanLbl').textContent='Tap to find your TV';$('#tvl').style.display='none';
+});
+
+// ── Source chips ──
+$$('.chip').forEach(c=>c.addEventListener('click',()=>{
+  $$('.src .chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');hap();
+  const action=c.dataset.action;
+  if(action&&actionMap[action])TVController.sendKey(actionMap[action]);
+}));
+
+// ── Touchpad swipe ──
+const tp=$('#tp');let ts=null;
+function sw(dx,dy){
+  const d=Math.sqrt(dx*dx+dy*dy);tp.className='tp';if(d<12)return;
+  const dir=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up');
+  tp.classList.add('dir-'+dir);hap();
+  TVController.sendKey(dir);
+  setTimeout(()=>tp.className='tp',250);
+}
+tp.addEventListener('touchstart',e=>{const t=e.touches[0];ts={x:t.clientX,y:t.clientY}},{passive:true});
+tp.addEventListener('touchend',e=>{if(!ts)return;const t=e.changedTouches[0];sw(t.clientX-ts.x,t.clientY-ts.y);ts=null},{passive:true});
+let ms=null;tp.addEventListener('mousedown',e=>{ms={x:e.clientX,y:e.clientY}});
+tp.addEventListener('mouseup',e=>{if(!ms)return;sw(e.clientX-ms.x,e.clientY-ms.y);ms=null});
+
+// ── All action buttons ──
+$$('[data-action]').forEach(b=>b.addEventListener('click',e=>{
+  e.stopPropagation();hap();
+  const action=b.dataset.action;
+  // App launches
+  if(appActions[action]){TVController.launchApp(appActions[action]);return}
+  // Key commands
+  const key=actionMap[action];
+  if(key)TVController.sendKey(key);
+}));
+
+// ── Port dropdown ──
+const portDD=$('#portDD');
+$('#portBtn').addEventListener('click',e=>{e.stopPropagation();portDD.classList.toggle('open');hap()});
+document.addEventListener('click',()=>portDD.classList.remove('open'));
+portDD.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+  $$('.src .chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');portDD.classList.remove('open');hap();
+  const action=c.dataset.action;
+  if(action&&actionMap[action])TVController.sendKey(actionMap[action]);
+}));
+
+// ── Payment ──
+$('#unlockBtn').addEventListener('click',()=>show('pay'));
+$('#payBk').addEventListener('click',()=>show('remote'));
+$('#buyBtn').addEventListener('click',()=>{const b=$('#buyBtn');b.textContent='Done \u2713';b.style.background='var(--grn)';b.style.boxShadow='0 6px 20px rgba(52,211,153,.35)';$('#trialB').style.display='none';setTimeout(()=>show('remote'),1200)});
+</script>
+</body>
+</html>
