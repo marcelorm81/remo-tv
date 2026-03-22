@@ -1,539 +1,435 @@
 /**
- * TVController - Client-side module for controlling TVs via the Remo server.
- * Exposes window.TVController
+ * TVController - Pure client-side TV control.
+ * Connects directly from the browser to TVs on the local network.
+ * No server needed. Supports LG (webOS) and Samsung smart TVs.
  */
 (function () {
   'use strict';
 
-  const SERVER = `${window.location.protocol}//${window.location.hostname}:3456`;
-  const WS_SERVER = `ws://${window.location.hostname}:3456`;
-
   // ─── State ─────────────────────────────────────────────────────────────────
-
-  let currentTV = null; // { ip, brand, name }
+  let currentTV = null;
   let ws = null;
+  let registered = false;
   let reconnectTimer = null;
   let reconnectAttempts = 0;
-  const MAX_RECONNECT_ATTEMPTS = 5;
+  let cmdId = 1;
+  const MAX_RECONNECT = 5;
   const RECONNECT_DELAY = 3000;
+  const STORAGE_KEY = 'remo_saved_tv';
 
   // ─── Key Mappings ──────────────────────────────────────────────────────────
-
-  const SAMSUNG_KEYS = {
-    power: 'KEY_POWER',
-    volUp: 'KEY_VOLUP',
-    volDown: 'KEY_VOLDOWN',
-    mute: 'KEY_MUTE',
-    chUp: 'KEY_CHUP',
-    chDown: 'KEY_CHDOWN',
-    up: 'KEY_UP',
-    down: 'KEY_DOWN',
-    left: 'KEY_LEFT',
-    right: 'KEY_RIGHT',
-    ok: 'KEY_ENTER',
-    back: 'KEY_RETURN',
-    home: 'KEY_HOME',
-    menu: 'KEY_MENU',
-    play: 'KEY_PLAY',
-    pause: 'KEY_PAUSE',
-    rewind: 'KEY_REWIND',
-    forward: 'KEY_FF',
-    info: 'KEY_INFO',
-    exit: 'KEY_EXIT',
-    num0: 'KEY_0',
-    num1: 'KEY_1',
-    num2: 'KEY_2',
-    num3: 'KEY_3',
-    num4: 'KEY_4',
-    num5: 'KEY_5',
-    num6: 'KEY_6',
-    num7: 'KEY_7',
-    num8: 'KEY_8',
-    num9: 'KEY_9',
-  };
-
-  const LG_KEYS = {
-    power: 'POWER',
-    volUp: 'VOLUMEUP',
-    volDown: 'VOLUMEDOWN',
-    mute: 'MUTE',
-    chUp: 'CHANNELUP',
-    chDown: 'CHANNELDOWN',
-    up: 'UP',
-    down: 'DOWN',
-    left: 'LEFT',
-    right: 'RIGHT',
-    ok: 'ENTER',
-    back: 'BACK',
-    home: 'HOME',
-    menu: 'MENU',
-    play: 'PLAY',
-    pause: 'PAUSE',
-    rewind: 'REWIND',
-    forward: 'FASTFORWARD',
-    info: 'INFO',
-    exit: 'EXIT',
-    num0: '0',
-    num1: '1',
-    num2: '2',
-    num3: '3',
-    num4: '4',
-    num5: '5',
-    num6: '6',
-    num7: '7',
-    num8: '8',
-    num9: '9',
-  };
-
-  const ROKU_KEYS = {
-    power: 'Power',
-    volUp: 'VolumeUp',
-    volDown: 'VolumeDown',
-    mute: 'VolumeMute',
-    chUp: 'ChannelUp',
-    chDown: 'ChannelDown',
-    up: 'Up',
-    down: 'Down',
-    left: 'Left',
-    right: 'Right',
-    ok: 'Select',
-    back: 'Back',
-    home: 'Home',
-    menu: 'Info',
-    play: 'Play',
-    pause: 'Play',
-    rewind: 'Rev',
-    forward: 'Fwd',
-    info: 'Info',
-    exit: 'Home',
-    num0: 'Lit_0',
-    num1: 'Lit_1',
-    num2: 'Lit_2',
-    num3: 'Lit_3',
-    num4: 'Lit_4',
-    num5: 'Lit_5',
-    num6: 'Lit_6',
-    num7: 'Lit_7',
-    num8: 'Lit_8',
-    num9: 'Lit_9',
-  };
-
-  // ─── App Mappings ──────────────────────────────────────────────────────────
-
-  const SAMSUNG_APPS = {
-    netflix: 'Netflix',
-    youtube: 'YouTube',
-    prime: 'Amazon Prime Video',
-    disney: 'Disney+',
-    hulu: 'Hulu',
-    appletv: 'Apple TV',
+  const LG_SSAP = {
+    power:   { uri: 'ssap://system/turnOff' },
+    volUp:   { uri: 'ssap://audio/volumeUp' },
+    volDown: { uri: 'ssap://audio/volumeDown' },
+    mute:    { uri: 'ssap://audio/setMute', payload: { mute: true } },
+    chUp:    { uri: 'ssap://tv/channelUp' },
+    chDown:  { uri: 'ssap://tv/channelDown' },
+    up:      { btn: 'UP' },
+    down:    { btn: 'DOWN' },
+    left:    { btn: 'LEFT' },
+    right:   { btn: 'RIGHT' },
+    ok:      { btn: 'ENTER' },
+    back:    { btn: 'BACK' },
+    home:    { btn: 'HOME' },
+    menu:    { btn: 'MENU' },
+    play:    { uri: 'ssap://media.controls/play' },
+    pause:   { uri: 'ssap://media.controls/pause' },
+    rewind:  { uri: 'ssap://media.controls/rewind' },
+    forward: { uri: 'ssap://media.controls/fastForward' },
+    info:    { btn: 'INFO' },
+    exit:    { btn: 'EXIT' },
+    guide:   { uri: 'ssap://com.webos.service.livetv/openChannel' },
+    num0: { btn: '0' }, num1: { btn: '1' }, num2: { btn: '2' },
+    num3: { btn: '3' }, num4: { btn: '4' }, num5: { btn: '5' },
+    num6: { btn: '6' }, num7: { btn: '7' }, num8: { btn: '8' }, num9: { btn: '9' },
+    hdmi1: { uri: 'ssap://tv/switchInput', payload: { inputId: 'HDMI_1' } },
+    hdmi2: { uri: 'ssap://tv/switchInput', payload: { inputId: 'HDMI_2' } },
+    hdmi3: { uri: 'ssap://tv/switchInput', payload: { inputId: 'HDMI_3' } },
+    hdmi4: { uri: 'ssap://tv/switchInput', payload: { inputId: 'HDMI_4' } },
+    tv:    { uri: 'ssap://tv/switchInput', payload: { inputId: 'TV' } },
+    av:    { uri: 'ssap://tv/switchInput', payload: { inputId: 'AV_1' } },
+    component: { uri: 'ssap://tv/switchInput', payload: { inputId: 'COMP_1' } },
+    usb:   { uri: 'ssap://tv/switchInput', payload: { inputId: 'USB_1' } },
   };
 
   const LG_APPS = {
-    netflix: 'netflix',
-    youtube: 'youtube.leanback.v4',
-    prime: 'amazon',
-    disney: 'com.disney.disneyplus-prod',
-    hulu: 'hulu',
-    appletv: 'com.apple.appletv',
+    netflix: 'netflix', youtube: 'youtube.leanback.v4',
+    prime: 'amazon', disney: 'com.disney.disneyplus-prod',
+    hulu: 'hulu', appletv: 'com.apple.appletv',
   };
 
-  const ROKU_APPS = {
-    netflix: '12',
-    youtube: '837',
-    prime: '13',
-    disney: '291097',
-    hulu: '2285',
-    appletv: '551012',
+  const SAMSUNG_KEYS = {
+    power: 'KEY_POWER', volUp: 'KEY_VOLUP', volDown: 'KEY_VOLDOWN',
+    mute: 'KEY_MUTE', chUp: 'KEY_CHUP', chDown: 'KEY_CHDOWN',
+    up: 'KEY_UP', down: 'KEY_DOWN', left: 'KEY_LEFT', right: 'KEY_RIGHT',
+    ok: 'KEY_ENTER', back: 'KEY_RETURN', home: 'KEY_HOME', menu: 'KEY_MENU',
+    play: 'KEY_PLAY', pause: 'KEY_PAUSE', rewind: 'KEY_REWIND', forward: 'KEY_FF',
+    info: 'KEY_INFO', exit: 'KEY_EXIT', guide: 'KEY_GUIDE',
+    num0: 'KEY_0', num1: 'KEY_1', num2: 'KEY_2', num3: 'KEY_3', num4: 'KEY_4',
+    num5: 'KEY_5', num6: 'KEY_6', num7: 'KEY_7', num8: 'KEY_8', num9: 'KEY_9',
+    hdmi1: 'KEY_HDMI1', hdmi2: 'KEY_HDMI2', hdmi3: 'KEY_HDMI3', hdmi4: 'KEY_HDMI4',
+    tv: 'KEY_TV', av: 'KEY_AV1', component: 'KEY_COMPONENT1', usb: 'KEY_USB',
   };
 
-  // ─── Event listeners ──────────────────────────────────────────────────────
+  const SAMSUNG_APPS = {
+    netflix: 'Netflix', youtube: 'YouTube', prime: 'Amazon Prime Video',
+    disney: 'Disney+', hulu: 'Hulu', appletv: 'Apple TV',
+  };
 
+  // ─── Events ────────────────────────────────────────────────────────────────
   const listeners = {};
+  function on(event, cb) { (listeners[event] = listeners[event] || []).push(cb); }
+  function off(event, cb) { if (listeners[event]) listeners[event] = listeners[event].filter(c => c !== cb); }
+  function emit(event, data) { (listeners[event] || []).forEach(cb => cb(data)); }
 
-  function on(event, callback) {
-    if (!listeners[event]) listeners[event] = [];
-    listeners[event].push(callback);
+  // ─── LG Registration payload ──────────────────────────────────────────────
+  function lgRegistration(clientKey) {
+    return {
+      type: 'register', id: 'register_0',
+      payload: {
+        pairingType: clientKey ? 'PROMPT' : 'PIN',
+        'client-key': clientKey || '',
+        manifest: {
+          manifestVersion: 1, appVersion: '1.1', signed: {
+            created: '20240101000000', appId: 'com.remo.remote',
+            vendorId: 'com.remo',
+            localizedAppNames: { '': 'Remo TV Remote' },
+            localizedVendorNames: { '': 'Remo' },
+            permissions: [
+              'LAUNCH', 'LAUNCH_WEBAPP', 'APP_TO_APP', 'CONTROL_AUDIO',
+              'CONTROL_DISPLAY', 'CONTROL_INPUT_JOYSTICK', 'CONTROL_INPUT_MEDIA_PLAYBACK',
+              'CONTROL_INPUT_MEDIA_RECORDING', 'CONTROL_INPUT_TEXT', 'CONTROL_INPUT_TV',
+              'CONTROL_MOUSE_AND_KEYBOARD', 'CONTROL_POWER', 'READ_APP_STATUS',
+              'READ_CURRENT_CHANNEL', 'READ_INPUT_DEVICE_LIST', 'READ_INSTALLED_APPS',
+              'READ_NETWORK_STATE', 'READ_RUNNING_APPS', 'READ_TV_CHANNEL_LIST',
+              'WRITE_NOTIFICATION'
+            ],
+            serial: 'remo-0001'
+          },
+          permissions: [
+            'LAUNCH', 'LAUNCH_WEBAPP', 'APP_TO_APP', 'CONTROL_AUDIO',
+            'CONTROL_DISPLAY', 'CONTROL_INPUT_JOYSTICK', 'CONTROL_INPUT_MEDIA_PLAYBACK',
+            'CONTROL_INPUT_MEDIA_RECORDING', 'CONTROL_INPUT_TEXT', 'CONTROL_INPUT_TV',
+            'CONTROL_MOUSE_AND_KEYBOARD', 'CONTROL_POWER', 'READ_APP_STATUS',
+            'READ_CURRENT_CHANNEL', 'READ_INPUT_DEVICE_LIST', 'READ_INSTALLED_APPS',
+            'READ_NETWORK_STATE', 'READ_RUNNING_APPS', 'READ_TV_CHANNEL_LIST',
+            'WRITE_NOTIFICATION'
+          ]
+        }
+      }
+    };
   }
 
-  function off(event, callback) {
-    if (!listeners[event]) return;
-    listeners[event] = listeners[event].filter((cb) => cb !== callback);
+  // ─── Saved TV ──────────────────────────────────────────────────────────────
+  function getSavedTV() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch(e) { return null; }
+  }
+  function saveTV(tv) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tv)); } catch(e) {}
+  }
+  function getSavedKey(ip) {
+    try { return localStorage.getItem('remo_lgkey_' + ip) || ''; } catch(e) { return ''; }
+  }
+  function saveLGKey(ip, key) {
+    try { localStorage.setItem('remo_lgkey_' + ip, key); } catch(e) {}
   }
 
-  function emit(event, data) {
-    if (listeners[event]) {
-      listeners[event].forEach((cb) => cb(data));
-    }
-  }
+  // ─── Probe TV brand by trying ports ────────────────────────────────────────
+  function probeTV(ip) {
+    return new Promise((resolve) => {
+      let resolved = false;
+      const done = (result) => { if (!resolved) { resolved = true; resolve(result); } };
 
-  // ─── Discover ──────────────────────────────────────────────────────────────
+      // Try LG WSS on port 3001
+      const lgWs = new WebSocket('wss://' + ip + ':3001');
+      lgWs.onopen = () => { lgWs.close(); done({ ip, brand: 'lg', name: 'LG TV', port: 3001, ssl: true }); };
+      lgWs.onerror = () => {
+        // Try LG WS on port 3000
+        const lgWs2 = new WebSocket('ws://' + ip + ':3000');
+        lgWs2.onopen = () => { lgWs2.close(); done({ ip, brand: 'lg', name: 'LG TV', port: 3000, ssl: false }); };
+        lgWs2.onerror = () => {
+          // Try Samsung WSS on port 8002
+          const samWs = new WebSocket('wss://' + ip + ':8002/api/v2/channels/samsung.remote.control?name=cmVtbw==');
+          samWs.onopen = () => { samWs.close(); done({ ip, brand: 'samsung', name: 'Samsung TV', port: 8002, ssl: true }); };
+          samWs.onerror = () => {
+            // Try Samsung WS on port 8001
+            const samWs2 = new WebSocket('ws://' + ip + ':8001/api/v2/channels/samsung.remote.control?name=cmVtbw==');
+            samWs2.onopen = () => { samWs2.close(); done({ ip, brand: 'samsung', name: 'Samsung TV', port: 8001, ssl: false }); };
+            samWs2.onerror = () => { done(null); };
+            setTimeout(() => { try { samWs2.close(); } catch(e){} }, 3000);
+          };
+          setTimeout(() => { try { samWs.close(); } catch(e){} }, 3000);
+        };
+        setTimeout(() => { try { lgWs2.close(); } catch(e){} }, 3000);
+      };
+      setTimeout(() => { try { lgWs.close(); } catch(e){} }, 3000);
 
-  async function discover() {
-    try {
-      const response = await fetch(`${SERVER}/api/discover`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const tvs = await response.json();
-      emit('discovered', tvs);
-      return tvs;
-    } catch (err) {
-      console.error('[TVController] Discovery failed:', err);
-      emit('error', { type: 'discover', message: err.message });
-      return [];
-    }
+      // Overall timeout
+      setTimeout(() => done(null), 12000);
+    });
   }
 
   // ─── Connect ───────────────────────────────────────────────────────────────
-
-  async function connect(tv) {
-    if (ws) {
-      disconnect();
-    }
-
+  function connect(tv) {
+    if (ws) disconnect();
     currentTV = tv;
+    registered = false;
     reconnectAttempts = 0;
+    saveTV(tv);
 
-    if (tv.brand === 'samsung') {
-      return connectWebSocket(`${WS_SERVER}/api/samsung/ws?ip=${tv.ip}`);
-    } else if (tv.brand === 'lg') {
-      return connectWebSocket(`${WS_SERVER}/api/lg/ws?ip=${tv.ip}`);
-    } else if (tv.brand === 'roku') {
-      // Roku uses REST calls, no persistent WebSocket needed
-      emit('connected', { brand: 'roku', ip: tv.ip });
-      return { brand: 'roku', ip: tv.ip, connected: true };
-    }
-
-    throw new Error(`Unsupported brand: ${tv.brand}`);
+    if (tv.brand === 'lg') return connectLG(tv);
+    if (tv.brand === 'samsung') return connectSamsung(tv);
+    return Promise.reject(new Error('Unsupported brand: ' + tv.brand));
   }
 
-  function connectWebSocket(url) {
+  function connectLG(tv) {
     return new Promise((resolve, reject) => {
-      ws = new WebSocket(url);
+      const proto = tv.ssl ? 'wss' : 'ws';
+      const port = tv.port || (tv.ssl ? 3001 : 3000);
+      const url = proto + '://' + tv.ip + ':' + port;
+
+      console.log('[Remo] Connecting LG at ' + url);
+      try {
+        ws = new WebSocket(url);
+      } catch(e) {
+        // If WSS fails due to cert, emit event so UI can guide user
+        emit('cert-needed', { ip: tv.ip, port: port, proto: proto });
+        reject(new Error('WebSocket blocked — certificate not accepted'));
+        return;
+      }
 
       const timeout = setTimeout(() => {
-        if (ws.readyState !== WebSocket.OPEN) {
-          ws.close();
+        if (!registered) {
+          try { ws.close(); } catch(e){}
           reject(new Error('Connection timeout'));
         }
-      }, 5000);
+      }, 10000);
 
       ws.onopen = () => {
-        console.log('[TVController] WebSocket connected');
+        console.log('[Remo] LG WebSocket open, registering...');
+        const clientKey = getSavedKey(tv.ip);
+        ws.send(JSON.stringify(lgRegistration(clientKey)));
       };
 
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          console.log('[Remo] LG msg:', msg.type, msg.id);
 
-          if (msg.event === 'connected') {
-            clearTimeout(timeout);
-            reconnectAttempts = 0;
-            emit('connected', msg);
-            resolve({ brand: msg.brand, ip: msg.ip, connected: true });
-          } else if (msg.event === 'tv_disconnected') {
-            emit('tv_disconnected', msg);
-            attemptReconnect();
-          } else {
-            emit('message', msg);
+          // Registration response
+          if (msg.id === 'register_0') {
+            if (msg.type === 'registered') {
+              // Success! Save the client key
+              const key = msg.payload && msg.payload['client-key'];
+              if (key) saveLGKey(tv.ip, key);
+              registered = true;
+              clearTimeout(timeout);
+              reconnectAttempts = 0;
+              emit('connected', { brand: 'lg', ip: tv.ip });
+              resolve({ brand: 'lg', ip: tv.ip, connected: true });
+            } else if (msg.type === 'response' && msg.payload && msg.payload.pairingType === 'PIN') {
+              // TV is showing a PIN
+              emit('pin-required', { ip: tv.ip });
+            } else if (msg.type === 'error') {
+              clearTimeout(timeout);
+              reject(new Error(msg.error || 'Registration rejected'));
+            }
           }
+
+          // Forward other messages
+          emit('message', msg);
         } catch (e) {
-          emit('message', event.data);
+          // non-JSON message
         }
       };
 
-      ws.onclose = () => {
-        console.log('[TVController] WebSocket closed');
-        emit('disconnected', { brand: currentTV?.brand });
-        ws = null;
-      };
-
       ws.onerror = (err) => {
-        console.error('[TVController] WebSocket error:', err);
+        console.error('[Remo] LG WS error');
+        // If this was WSS and failed, likely cert issue
+        if (tv.ssl) {
+          emit('cert-needed', { ip: tv.ip, port: port });
+        }
         clearTimeout(timeout);
         emit('error', { type: 'connection', message: 'WebSocket error' });
+        reject(new Error('Connection failed — see cert-needed event'));
+      };
+
+      ws.onclose = () => {
+        console.log('[Remo] LG WS closed');
+        if (registered) {
+          emit('disconnected', { brand: 'lg' });
+          attemptReconnect();
+        }
+        ws = null;
+      };
+    });
+  }
+
+  function connectSamsung(tv) {
+    return new Promise((resolve, reject) => {
+      const proto = tv.ssl ? 'wss' : 'ws';
+      const port = tv.port || (tv.ssl ? 8002 : 8001);
+      const name = btoa('Remo Remote');
+      const url = proto + '://' + tv.ip + ':' + port + '/api/v2/channels/samsung.remote.control?name=' + name;
+
+      console.log('[Remo] Connecting Samsung at ' + url);
+      try {
+        ws = new WebSocket(url);
+      } catch(e) {
+        emit('cert-needed', { ip: tv.ip, port: port });
+        reject(new Error('WebSocket blocked'));
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        if (!registered) { try { ws.close(); } catch(e){} reject(new Error('Timeout')); }
+      }, 8000);
+
+      ws.onopen = () => {
+        console.log('[Remo] Samsung WS open');
+        registered = true;
+        clearTimeout(timeout);
+        emit('connected', { brand: 'samsung', ip: tv.ip });
+        resolve({ brand: 'samsung', ip: tv.ip, connected: true });
+      };
+
+      ws.onmessage = (event) => {
+        try { emit('message', JSON.parse(event.data)); } catch(e){}
+      };
+
+      ws.onerror = () => {
+        if (tv.ssl) emit('cert-needed', { ip: tv.ip, port: port });
+        clearTimeout(timeout);
+        reject(new Error('Samsung connection failed'));
+      };
+
+      ws.onclose = () => {
+        if (registered) { emit('disconnected', { brand: 'samsung' }); attemptReconnect(); }
+        ws = null;
       };
     });
   }
 
   function attemptReconnect() {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS || !currentTV) return;
+    if (reconnectAttempts >= MAX_RECONNECT || !currentTV) return;
     reconnectAttempts++;
-    console.log(
-      `[TVController] Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}...`
-    );
     emit('reconnecting', { attempt: reconnectAttempts });
     reconnectTimer = setTimeout(() => {
-      connect(currentTV).catch((err) => {
-        console.error('[TVController] Reconnect failed:', err);
-      });
+      connect(currentTV).catch(() => {});
     }, RECONNECT_DELAY);
   }
 
   // ─── Send Key ──────────────────────────────────────────────────────────────
+  function sendKey(key) {
+    if (!currentTV || !ws || ws.readyState !== WebSocket.OPEN) return false;
 
-  async function sendKey(key) {
-    if (!currentTV) {
-      console.error('[TVController] No TV connected');
-      return false;
+    if (currentTV.brand === 'lg') {
+      const mapping = LG_SSAP[key];
+      if (!mapping) return false;
+
+      if (mapping.btn) {
+        // Use button type for d-pad, numbers, etc.
+        ws.send(JSON.stringify({ type: 'button', name: mapping.btn }));
+      } else {
+        // Use SSAP request for system commands
+        const cmd = { type: 'request', id: 'cmd_' + (cmdId++), uri: mapping.uri };
+        if (mapping.payload) cmd.payload = mapping.payload;
+        ws.send(JSON.stringify(cmd));
+      }
+      emit('keySent', { brand: 'lg', key });
+      return true;
     }
 
-    const brand = currentTV.brand;
-    console.log(`[TVController] Sending key "${key}" to ${brand} TV`);
-
-    if (brand === 'samsung') {
-      return sendSamsungKey(key);
-    } else if (brand === 'lg') {
-      return sendLGKey(key);
-    } else if (brand === 'roku') {
-      return sendRokuKey(key);
+    if (currentTV.brand === 'samsung') {
+      const sKey = SAMSUNG_KEYS[key];
+      if (!sKey) return false;
+      ws.send(JSON.stringify({
+        method: 'ms.remote.control',
+        params: { Cmd: 'Click', DataOfCmd: sKey, Option: 'false', TypeOfRemote: 'SendRemoteKey' }
+      }));
+      emit('keySent', { brand: 'samsung', key });
+      return true;
     }
 
     return false;
   }
 
-  function sendSamsungKey(key) {
-    const samsungKey = SAMSUNG_KEYS[key];
-    if (!samsungKey) {
-      console.warn(`[TVController] Unknown Samsung key: ${key}`);
-      return false;
-    }
-
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('[TVController] Samsung WebSocket not connected');
-      return false;
-    }
-
-    const cmd = {
-      method: 'ms.remote.control',
-      params: {
-        Cmd: 'Click',
-        DataOfCmd: samsungKey,
-        Option: 'false',
-        TypeOfRemote: 'SendRemoteKey',
-      },
-    };
-
-    ws.send(JSON.stringify(cmd));
-    emit('keySent', { brand: 'samsung', key, mapped: samsungKey });
+  // ─── Send PIN ──────────────────────────────────────────────────────────────
+  function sendPin(pin) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+    ws.send(JSON.stringify({
+      type: 'request', id: 'pin_0',
+      uri: 'ssap://pairing/setPin',
+      payload: { pin: String(pin) }
+    }));
     return true;
-  }
-
-  function sendLGKey(key) {
-    const lgKey = LG_KEYS[key];
-    if (!lgKey) {
-      console.warn(`[TVController] Unknown LG key: ${key}`);
-      return false;
-    }
-
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('[TVController] LG WebSocket not connected');
-      return false;
-    }
-
-    const cmd = { type: 'button', name: lgKey };
-    ws.send(JSON.stringify(cmd));
-    emit('keySent', { brand: 'lg', key, mapped: lgKey });
-    return true;
-  }
-
-  async function sendRokuKey(key) {
-    const rokuKey = ROKU_KEYS[key];
-    if (!rokuKey) {
-      console.warn(`[TVController] Unknown Roku key: ${key}`);
-      return false;
-    }
-
-    try {
-      const response = await fetch(`${SERVER}/api/roku/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: currentTV.ip, key: rokuKey }),
-      });
-      const result = await response.json();
-      emit('keySent', { brand: 'roku', key, mapped: rokuKey });
-      return result.success;
-    } catch (err) {
-      console.error('[TVController] Roku command failed:', err);
-      emit('error', { type: 'command', message: err.message });
-      return false;
-    }
   }
 
   // ─── Launch App ────────────────────────────────────────────────────────────
+  function launchApp(appName) {
+    if (!currentTV || !ws || ws.readyState !== WebSocket.OPEN) return false;
+    const name = appName.toLowerCase().replace(/[\s+]/g, '');
 
-  async function launchApp(appName) {
-    if (!currentTV) {
-      console.error('[TVController] No TV connected');
-      return false;
+    if (currentTV.brand === 'lg') {
+      const appId = LG_APPS[name];
+      if (!appId) return false;
+      ws.send(JSON.stringify({
+        type: 'request', id: 'launch_' + (cmdId++),
+        uri: 'ssap://system.launcher/launch',
+        payload: { id: appId }
+      }));
+      emit('appLaunched', { brand: 'lg', app: name });
+      return true;
     }
 
-    const brand = currentTV.brand;
-    const normalizedName = appName.toLowerCase().replace(/[\s+]/g, '');
-    console.log(`[TVController] Launching "${appName}" on ${brand} TV`);
-
-    if (brand === 'samsung') {
-      return launchSamsungApp(normalizedName);
-    } else if (brand === 'lg') {
-      return launchLGApp(normalizedName);
-    } else if (brand === 'roku') {
-      return launchRokuApp(normalizedName);
+    if (currentTV.brand === 'samsung') {
+      const appId = SAMSUNG_APPS[name];
+      if (!appId) return false;
+      ws.send(JSON.stringify({
+        method: 'ms.channel.emit',
+        params: { event: 'ed.apps.launch', to: 'host', data: { appId, action_type: 'DEEP_LINK' } }
+      }));
+      emit('appLaunched', { brand: 'samsung', app: name });
+      return true;
     }
 
     return false;
   }
 
-  function launchSamsungApp(appName) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('[TVController] Samsung WebSocket not connected');
-      return false;
-    }
-
-    const appId = SAMSUNG_APPS[appName];
-    if (!appId) {
-      console.warn(`[TVController] Unknown Samsung app: ${appName}`);
-      return false;
-    }
-
-    const cmd = {
-      method: 'ms.channel.emit',
-      params: {
-        event: 'ed.apps.launch',
-        to: 'host',
-        data: {
-          appId: appId,
-          action_type: 'DEEP_LINK',
-        },
-      },
-    };
-
-    ws.send(JSON.stringify(cmd));
-    emit('appLaunched', { brand: 'samsung', app: appName });
-    return true;
-  }
-
-  function launchLGApp(appName) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.error('[TVController] LG WebSocket not connected');
-      return false;
-    }
-
-    const appId = LG_APPS[appName];
-    if (!appId) {
-      console.warn(`[TVController] Unknown LG app: ${appName}`);
-      return false;
-    }
-
-    const cmd = {
-      type: 'request',
-      id: `launch_${Date.now()}`,
-      uri: 'ssap://system.launcher/launch',
-      payload: { id: appId },
-    };
-
-    ws.send(JSON.stringify(cmd));
-    emit('appLaunched', { brand: 'lg', app: appName });
-    return true;
-  }
-
-  async function launchRokuApp(appName) {
-    const appId = ROKU_APPS[appName];
-    if (!appId) {
-      console.warn(`[TVController] Unknown Roku app: ${appName}`);
-      return false;
-    }
-
-    try {
-      const response = await fetch(`${SERVER}/api/roku/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: currentTV.ip, appId }),
-      });
-      const result = await response.json();
-      emit('appLaunched', { brand: 'roku', app: appName });
-      return result.success;
-    } catch (err) {
-      console.error('[TVController] Roku app launch failed:', err);
-      emit('error', { type: 'launch', message: err.message });
-      return false;
-    }
-  }
-
   // ─── Disconnect ────────────────────────────────────────────────────────────
-
   function disconnect() {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-    reconnectAttempts = MAX_RECONNECT_ATTEMPTS; // Prevent auto-reconnect
-
-    if (ws) {
-      ws.close();
-      ws = null;
-    }
-
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    reconnectAttempts = MAX_RECONNECT;
+    if (ws) { try { ws.close(); } catch(e){} ws = null; }
     const prev = currentTV;
     currentTV = null;
-    emit('disconnected', { brand: prev?.brand });
-    console.log('[TVController] Disconnected');
+    registered = false;
+    emit('disconnected', { brand: prev && prev.brand });
   }
 
   // ─── Manual Connect ────────────────────────────────────────────────────────
-
   async function manualConnect(ip) {
-    try {
-      const response = await fetch(`${SERVER}/api/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip }),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const tv = await response.json();
-      return connect(tv);
-    } catch (err) {
-      console.error('[TVController] Manual connect failed:', err);
-      emit('error', { type: 'connect', message: err.message });
-      throw err;
-    }
+    emit('probing', { ip });
+    const tv = await probeTV(ip);
+    if (!tv) throw new Error('No TV found at ' + ip);
+    return tv;
   }
 
-  // ─── LG-specific: request pointer input socket ─────────────────────────────
-
-  function requestPointerSocket() {
-    if (!ws || ws.readyState !== WebSocket.OPEN || currentTV?.brand !== 'lg') {
-      return false;
-    }
-    const cmd = {
-      type: 'request',
-      id: 'pointer_0',
-      uri: 'ssap://com.webos.service.networkinput/getPointerInputSocket',
-    };
-    ws.send(JSON.stringify(cmd));
-    return true;
-  }
-
-  // ─── Status ────────────────────────────────────────────────────────────────
-
-  function getStatus() {
-    return {
-      connected: currentTV !== null && (currentTV.brand === 'roku' || (ws && ws.readyState === WebSocket.OPEN)),
-      tv: currentTV,
-      wsState: ws ? ws.readyState : null,
-    };
+  // ─── Discovery (subnet scan) ───────────────────────────────────────────────
+  async function discover() {
+    // In pure client mode, we can't do SSDP. Instead try common IPs.
+    // This is a best-effort scan of the local subnet.
+    throw new Error('Auto-discovery requires entering your TV IP address');
   }
 
   // ─── Expose API ────────────────────────────────────────────────────────────
-
   window.TVController = {
-    discover,
-    connect,
-    manualConnect,
-    sendKey,
-    launchApp,
-    disconnect,
-    requestPointerSocket,
-    getStatus,
-    on,
-    off,
+    discover, connect, manualConnect, sendKey, sendPin, launchApp,
+    disconnect, on, off, getSavedTV, probeTV,
+    getStatus: () => ({
+      connected: registered && ws && ws.readyState === WebSocket.OPEN,
+      tv: currentTV, wsState: ws ? ws.readyState : null,
+    }),
   };
 })();

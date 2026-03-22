@@ -335,8 +335,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/><path d="M12 10a2 2 0 0 1 2 2"/><circle cx="12" cy="12" r=".5" fill="currentColor"/></svg>
       </div>
       <div class="scan-l" id="scanLbl">Tap to find your TV</div>
-      <div class="tvl" id="tvl" style="display:none"></div>
-
       <div style="display:flex;align-items:center;gap:10px;width:100%;margin-top:4px">
         <div style="flex:1;height:1px;background:var(--mut);opacity:.3"></div>
         <span style="font-size:11px;color:var(--mut)">or type IP</span>
@@ -354,22 +352,7 @@
           box-shadow:0 3px 10px rgba(255,107,53,.3);white-space:nowrap">Connect</button>
       </div>
 
-      <div style="display:flex;align-items:center;gap:10px;width:100%;margin-top:4px">
-        <div style="flex:1;height:1px;background:var(--mut);opacity:.3"></div>
-        <span style="font-size:11px;color:var(--mut)">or enter bridge code</span>
-        <div style="flex:1;height:1px;background:var(--mut);opacity:.3"></div>
-      </div>
-
-      <div style="display:flex;gap:6px;width:100%">
-        <input id="codeInput" type="text" inputmode="numeric" maxlength="6" placeholder="6-digit code"
-          style="flex:1;padding:10px 14px;border-radius:12px;background:var(--bg);
-          box-shadow:var(--ni);border:none;color:var(--tx);font-family:inherit;
-          font-size:16px;text-align:center;outline:none;letter-spacing:4px" />
-        <button id="codeGo" style="padding:10px 16px;border-radius:12px;
-          background:linear-gradient(135deg,#34d399,#2dd4bf);border:none;
-          color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
-          box-shadow:0 3px 10px rgba(52,211,153,.3);white-space:nowrap">Join</button>
-      </div>
+      <div id="tvl" style="display:none;width:100%;flex-direction:column;gap:8px"></div>
     </div>
   </div>
 
@@ -467,14 +450,12 @@
 </div>
 
 <script src="tv-controller.js"></script>
-<script src="webrtc-remote.js"></script>
 <script>
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const scr={disc:$('#s-disc'),remote:$('#s-remote')};
 function show(n){Object.values(scr).forEach(s=>s.classList.remove('on'));requestAnimationFrame(()=>scr[n].classList.add('on'))}
 function hap(){navigator.vibrate&&navigator.vibrate(8)}
 
-// ── Action-to-key mapping ──
 const actionMap={
   power:'power','vol+':'volUp','vol-':'volDown',mute:'mute',
   'ch+':'chUp','ch-':'chDown',guide:'guide',
@@ -488,10 +469,11 @@ const actionMap={
 };
 const appActions={netflix:'netflix',youtube:'youtube',prime:'prime',disney:'disney'};
 
-// ── TV Controller events ──
+// ── Status indicator ──
 TVController.on('connected',()=>{
-  console.log('[remo] Connected to TV');
+  console.log('[remo] Connected!');
   $('.rtv-d').style.background='var(--grn)';
+  $('#scanLbl').textContent='Connected!';
 });
 TVController.on('disconnected',()=>{
   console.log('[remo] Disconnected');
@@ -499,169 +481,102 @@ TVController.on('disconnected',()=>{
 });
 TVController.on('error',e=>console.warn('[remo] Error:',e));
 
-// ── Discovery ──
-$('#scanBtn').addEventListener('click',async function(){
-  if(this.classList.contains('go'))return;
-  this.classList.add('go');$('#scanLbl').textContent='Scanning your network\u2026';$('#tvl').style.display='none';hap();
-
-  try{
-    const tvs=await TVController.discover();
-    this.classList.remove('go');
-
-    if(tvs.length===0){
-      // No TVs found — offer manual IP entry
-      this.style.display='none';
-      $('#scanLbl').textContent='No TVs found';
-      $('#tvl').innerHTML=`
-        <div style="display:flex;flex-direction:column;gap:8px;align-items:center">
-          <div style="font-size:12px;color:var(--dim)">Enter your TV's IP address:</div>
-          <input id="manualIp" type="text" placeholder="192.168.1.100"
-            style="width:100%;padding:10px 14px;border-radius:10px;background:var(--bg);
-            box-shadow:var(--ni);border:none;color:var(--tx);font-family:inherit;
-            font-size:14px;text-align:center;outline:none" />
-          <button id="manualConnect" style="padding:8px 20px;border-radius:18px;
-            background:linear-gradient(135deg,var(--acc),#ff8f65);border:none;
-            color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">
-            Connect</button>
-        </div>`;
-      $('#tvl').style.display='flex';
-
-      $('#manualConnect').addEventListener('click',async()=>{
-        const ip=$('#manualIp').value.trim();
-        if(!ip)return;
-        $('#manualConnect').textContent='Connecting\u2026';
-        try{
-          const tv=await TVController.manualConnect(ip);
-          await TVController.connect(tv);
-          $('#tvN').textContent=tv.name||tv.ip;
-          show('remote');
-        }catch(err){
-          $('#manualConnect').textContent='Failed \u2014 try again';
-          setTimeout(()=>{$('#manualConnect').textContent='Connect'},2000);
-        }
-      });
-      return;
-    }
-
-    this.style.display='none';
-    $('#scanLbl').textContent=`Found ${tvs.length} device${tvs.length>1?'s':''}`;
-    $('#tvl').innerHTML=tvs.map((t,i)=>`
-      <div class="tvi" data-idx="${i}">
-        <div class="tvi-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-        <div class="tvi-t"><div class="tvi-n">${t.name||t.ip}</div><div class="tvi-m">${t.brand}${t.model?' '+t.model:''} \u2014 ${t.ip}</div></div>
-        <div class="tvi-d"></div>
-      </div>`).join('');
-    $('#tvl').style.display='flex';
-
-    // Store discovered TVs for connection
-    window._discoveredTVs=tvs;
-
-    $$('.tvi').forEach(item=>{
-      item.addEventListener('click',async()=>{
-        hap();
-        const idx=parseInt(item.dataset.idx);
-        const tv=window._discoveredTVs[idx];
-        item.querySelector('.tvi-n').textContent='Connecting\u2026';
-        try{
-          await TVController.connect(tv);
-          $('#tvN').textContent=tv.name||tv.ip;
-          show('remote');
-        }catch(err){
-          item.querySelector('.tvi-n').textContent=tv.name||tv.ip;
-          item.querySelector('.tvi-m').textContent='Connection failed \u2014 tap to retry';
-        }
-      });
-    });
-  }catch(err){
-    this.classList.remove('go');this.style.display='none';
-    const isCloud=location.hostname!=='localhost'&&!location.hostname.startsWith('192.');
-    if(isCloud){
-      $('#scanLbl').textContent='';
-      $('#tvl').innerHTML=`
-        <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;padding:0 10px">
-          <div style="font-size:14px;color:var(--tx);font-weight:500">Local server required</div>
-          <div style="font-size:12px;color:var(--dim);line-height:1.6">
-            TV control needs to run on your home WiFi.<br>
-            Open a terminal and run:</div>
-          <div style="background:var(--bg);box-shadow:var(--ni);border-radius:10px;
-            padding:12px 16px;font-size:11px;color:var(--acc);font-family:monospace;
-            width:100%;text-align:left;line-height:1.8;word-break:break-all">
-            git clone https://github.com/marcelorm81/remo-tv.git<br>
-            cd remo-tv<br>
-            npm install<br>
-            npm start</div>
-          <div style="font-size:12px;color:var(--dim)">
-            Then open <strong style="color:var(--tx)">localhost:3456</strong> on your phone</div>
-        </div>`;
-      $('#tvl').style.display='flex';
-    }else{
-      $('#scanLbl').textContent='Scan failed \u2014 is the server running?';
-    }
-    console.error('[remo] Discovery error:',err);
-  }
+// ── Cert needed: guide user to accept TV's self-signed cert ──
+TVController.on('cert-needed',(info)=>{
+  const url='https://'+info.ip+':'+(info.port||3001);
+  $('#scanLbl').innerHTML='';
+  $('#tvl').innerHTML=`
+    <div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;padding:0 10px">
+      <div style="font-size:14px;color:var(--tx);font-weight:500">One-time setup needed</div>
+      <div style="font-size:12px;color:var(--dim);line-height:1.6">
+        Your browser needs to trust your TV's connection.<br>
+        Tap the button below, then tap <strong style="color:var(--tx)">"Advanced"</strong> and <strong style="color:var(--tx)">"Proceed"</strong>.</div>
+      <a href="${url}" target="_blank" rel="noopener"
+        style="display:inline-block;padding:12px 24px;border-radius:18px;
+        background:linear-gradient(135deg,var(--acc),#ff8f65);
+        color:#fff;font-size:13px;font-weight:600;text-decoration:none;
+        box-shadow:0 3px 10px rgba(255,107,53,.3)">
+        Enable TV Connection</a>
+      <div style="font-size:11px;color:var(--dim)">After accepting, come back here and tap Connect again.</div>
+    </div>`;
+  $('#tvl').style.display='flex';
 });
 
-// ── Manual IP connect ──
-$('#ipGo').addEventListener('click',async()=>{
-  const ip=$('#ipInput').value.trim();
-  if(!ip)return;
+// ── PIN required ──
+TVController.on('pin-required',()=>{
+  const overlay=document.createElement('div');
+  overlay.id='pinOverlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:999';
+  overlay.innerHTML=`
+    <div style="background:var(--bg);border-radius:20px;padding:24px;width:280px;box-shadow:var(--neo);text-align:center">
+      <div style="font-size:16px;font-weight:600;color:var(--tx);margin-bottom:8px">Enter PIN from TV</div>
+      <div style="font-size:12px;color:var(--dim);margin-bottom:16px">Look at your TV screen for the PIN code</div>
+      <input id="pinInput" type="text" inputmode="numeric" maxlength="8" placeholder="PIN"
+        style="width:100%;padding:12px;border-radius:12px;background:var(--bg);box-shadow:var(--ni);
+        border:none;color:var(--tx);font-size:24px;text-align:center;letter-spacing:8px;
+        font-family:inherit;outline:none" autofocus />
+      <button id="pinSubmit" style="margin-top:12px;width:100%;padding:12px;border-radius:14px;
+        background:linear-gradient(135deg,var(--acc),#ff8f65);border:none;color:#fff;
+        font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Confirm</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>{const pi=document.getElementById('pinInput');if(pi)pi.focus()},100);
+  document.getElementById('pinSubmit').addEventListener('click',()=>{
+    const pin=document.getElementById('pinInput').value.trim();
+    if(pin){TVController.sendPin(pin);overlay.remove()}
+  });
+  document.getElementById('pinInput').addEventListener('keydown',e=>{
+    if(e.key==='Enter')document.getElementById('pinSubmit').click();
+  });
+});
+
+// ── Connect flow ──
+async function tryConnect(ip){
   const btn=$('#ipGo');
-  btn.textContent='Connecting\u2026';btn.style.opacity='.7';
+  btn.textContent='Finding TV\u2026';btn.style.opacity='.7';
   try{
     const tv=await TVController.manualConnect(ip);
+    btn.textContent='Connecting\u2026';
     await TVController.connect(tv);
     $('#tvN').textContent=tv.name||tv.ip;
     show('remote');
+    btn.textContent='Connect';btn.style.opacity='1';
   }catch(err){
-    btn.textContent='Failed';btn.style.opacity='1';
-    setTimeout(()=>{btn.textContent='Connect'},2000);
+    console.warn('[remo]',err.message);
+    btn.textContent='Retry';btn.style.opacity='1';
+    setTimeout(()=>{btn.textContent='Connect'},3000);
   }
+}
+
+$('#ipGo').addEventListener('click',()=>{
+  const ip=$('#ipInput').value.trim();
+  if(ip)tryConnect(ip);
 });
 $('#ipInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ipGo').click()});
 
-// ── Bridge code connect (WebRTC) ──
-let remoteClient=null;
-$('#codeGo').addEventListener('click',async()=>{
-  const code=$('#codeInput').value.trim();
-  if(!code||code.length!==6)return;
-  const btn=$('#codeGo');
-  btn.textContent='Joining\u2026';btn.style.opacity='.7';
-  try{
-    remoteClient=new RemoteClient();
-    remoteClient.onConnected=()=>{
-      console.log('[remo] WebRTC connected!');
-      $('#tvN').textContent='Remote TV';
-      $('.rtv-d').style.background='var(--grn)';
-    };
-    remoteClient.onDisconnected=()=>{
-      console.log('[remo] WebRTC disconnected');
-      $('.rtv-d').style.background='var(--red)';
-    };
-    await remoteClient.joinRoom(code);
-    // Override TVController to use WebRTC transport
-    TVController._webrtc=remoteClient;
-    TVController.sendKey=function(key){
-      if(remoteClient&&remoteClient.sendKey(key))return;
-    };
-    TVController.launchApp=function(app){
-      if(remoteClient&&remoteClient.launchApp(app))return;
-    };
-    show('remote');
-    btn.textContent='Join';btn.style.opacity='1';
-  }catch(err){
-    btn.textContent='Failed';btn.style.opacity='1';
-    console.error('[remo] WebRTC join error:',err);
-    setTimeout(()=>{btn.textContent='Join'},2000);
+// ── Auto-reconnect saved TV ──
+(function(){
+  const saved=TVController.getSavedTV();
+  if(saved&&saved.ip){
+    $('#ipInput').value=saved.ip;
+    $('#scanLbl').textContent='Last TV: '+saved.ip+' ('+saved.brand+')';
   }
+})();
+
+// ── Scan button now just focuses the IP input ──
+$('#scanBtn').addEventListener('click',()=>{
+  hap();
+  $('#ipInput').focus();
+  $('#scanLbl').textContent='Enter your TV\u2019s IP address';
 });
-$('#codeInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#codeGo').click()});
 
 // ── Back button ──
 $('#backBtn').addEventListener('click',()=>{
   TVController.disconnect();
   show('disc');
-  const s=$('#scanBtn');s.style.display='';s.classList.remove('go');
-  $('#scanLbl').textContent='Tap to find your TV';$('#tvl').style.display='none';
+  $('#scanLbl').textContent='Tap to find your TV';
+  $('#tvl').style.display='none';
+  $('#tvl').innerHTML='';
 });
 
 // ── Source chips ──
@@ -690,9 +605,7 @@ tp.addEventListener('mouseup',e=>{if(!ms)return;sw(e.clientX-ms.x,e.clientY-ms.y
 $$('[data-action]').forEach(b=>b.addEventListener('click',e=>{
   e.stopPropagation();hap();
   const action=b.dataset.action;
-  // App launches
   if(appActions[action]){TVController.launchApp(appActions[action]);return}
-  // Key commands
   const key=actionMap[action];
   if(key)TVController.sendKey(key);
 }));
@@ -707,8 +620,6 @@ portDD.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
   const action=c.dataset.action;
   if(action&&actionMap[action])TVController.sendKey(actionMap[action]);
 }));
-
-// ── Payment ──
 </script>
 </body>
 </html>
