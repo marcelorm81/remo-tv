@@ -226,9 +226,9 @@ app.post('/api/connect', async (req, res) => {
     // Not Samsung, try next
   }
 
-  // Try LG
+  // Try LG (SSL port 3001 first, then plain 3000)
   try {
-    if (await checkPort(ip, 3000, 3000)) {
+    if (await checkPort(ip, 3001, 3000) || await checkPort(ip, 3000, 3000)) {
       const result = { brand: 'lg', name: 'LG TV', ip };
       console.log(`[Connect] Detected LG: ${JSON.stringify(result)}`);
       return res.json(result);
@@ -397,7 +397,9 @@ function handleSamsungProxy(clientWs, ip) {
 // ─── LG WebSocket Proxy ───────────────────────────────────────────────────────
 
 function handleLGProxy(clientWs, ip) {
-  const tvUrl = `ws://${ip}:3000`;
+  // Try SSL (3001) first, fall back to plain (3000)
+  let tvUrl = `wss://${ip}:3001`;
+  let useSSL = true;
 
   console.log(`[LG WS] Connecting to TV at ${tvUrl}`);
 
@@ -476,10 +478,10 @@ function handleLGProxy(clientWs, ip) {
   };
 
   function connectToTV() {
-    tvWs = new WebSocket(tvUrl, { handshakeTimeout: 3000 });
+    tvWs = new WebSocket(tvUrl, { handshakeTimeout: 5000, rejectUnauthorized: false });
 
     tvWs.on('open', () => {
-      console.log(`[LG WS] Connected to TV at ${ip}`);
+      console.log(`[LG WS] Connected to TV at ${tvUrl}`);
       // Send registration/handshake
       tvWs.send(JSON.stringify(LG_REGISTRATION));
       clientWs.send(JSON.stringify({ event: 'connected', brand: 'lg', ip }));
@@ -529,7 +531,15 @@ function handleLGProxy(clientWs, ip) {
     });
 
     tvWs.on('error', (err) => {
-      console.error(`[LG WS] Error: ${err.message}`);
+      console.error(`[LG WS] Error on ${tvUrl}: ${err.message}`);
+      // If SSL failed, try plain WS on port 3000
+      if (useSSL && (err.message.includes('ECONNRESET') || err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT'))) {
+        useSSL = false;
+        tvUrl = `ws://${ip}:3000`;
+        console.log(`[LG WS] Retrying with plain WS: ${tvUrl}`);
+        connectToTV();
+        return;
+      }
       tvWs.close();
     });
   }
